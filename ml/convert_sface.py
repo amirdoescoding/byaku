@@ -30,14 +30,16 @@ def parity_faces(models, n=8):
     assert faces is not None and len(faces) >= 5, f"need >=5 public faces, got {0 if faces is None else len(faces)}"
     rec = cv2.FaceRecognizerSF.create(str(models / "sface.onnx"), "")
     faces = sorted(faces, key=lambda f: -f[2] * f[3])[:n]
-    return rec, [rec.alignCrop(img, f) for f in faces]
+    # Lossless copy of the decoded pixels: ImageIO and libjpeg decode the JPEG ~3.5 levels apart (Swift parity reads this).
+    cv2.imwrite(str(models / "parity" / "sample.png"), img)
+    return rec, faces, [rec.alignCrop(img, f) for f in faces]
 
 
 def main():
     models = fetch()
-    rec, crops = parity_faces(models)
     out = models / "parity"
     out.mkdir(exist_ok=True)
+    rec, faces, crops = parity_faces(models)
 
     sess = ort.InferenceSession(str(models / "sface.onnx"))
     def ort_feat(bgr, rgb):
@@ -84,6 +86,9 @@ def main():
         print(f"{name}: cv2~ort={c_cv:.5f} ort~coreml={c_ml:.5f}")
         ref[name] = [float(v) for v in np.ravel(o)]
     (out / "parity.json").write_text(json.dumps(ref))
+    # YuNet bbox (x, y, w, h) + 5 points (eyes, nose, mouth corners; image-left first), top-left origin, sample.jpg px.
+    # Swift `byaku align` warps sample.jpg from these to check its solve + warp against alignCrop.
+    (out / "landmarks.json").write_text(json.dumps({f"face{i}.png": [float(v) for v in f[:14]] for i, f in enumerate(faces)}))
     print(f"worst cosine {worst:.5f} (bar {BAR}) -> {'PASS' if worst > BAR else 'FAIL'}")
     sys.exit(0 if worst > BAR else 1)
 
