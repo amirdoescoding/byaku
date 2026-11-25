@@ -39,10 +39,9 @@ final class BannerPanel: AnchoredPanel {
         let close = PanelButton("", role: .close) { [weak self] in self?.onClose() }
         close.setFrameOrigin(NSPoint(x: 320 - 12 - 24, y: 64 - 8 - 24))
         [mark, title, body, close].forEach(v.addSubview)
-        advance()
     }
 
-    /// Take the next line. Call once per new alert, never while one is showing.
+    /// Take the next line (the first alert gets the first). Call once per new alert, never while one is showing.
     func advance() {
         body.stringValue = Self.lines[next % Self.lines.count]
         next += 1

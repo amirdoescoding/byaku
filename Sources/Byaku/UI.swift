@@ -296,6 +296,8 @@ final class PanelButton: NSButton {
     private func superClick(_ sender: Any?) { super.performClick(sender) }
 
     override var acceptsFirstResponder: Bool { true }
+    /// Click through on first press: the banner never becomes key and the accessory app is never active.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func becomeFirstResponder() -> Bool {
         focus.isHidden = NSApp.currentEvent?.type != .keyDown  // focus = seen: only when the keyboard put it here
         return super.becomeFirstResponder()
