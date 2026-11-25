@@ -78,6 +78,10 @@ Most of the savings come from the pipeline, not the language.
 | 2026-11-25 | SFace (opencv_zoo) as the owner-embedding candidate | Small and MIT-friendly. Needs CoreML conversion |
 | 2026-11-25 | CompreFace rejected | A Docker server is far too heavy for a menu-bar app |
 | 2026-11-25 | macOS first, MIT license | Focus |
+| 2026-11-25 | Lock = private `SACLockScreenImmediate` (dlopen `login.framework`), `pmset displaysleepnow` fallback | Spike: `locked=true` on macOS 15.6 / M1, verified by `CGSSessionScreenIsLocked` and a password prompt on unlock |
+| 2026-11-25 | Away: the owner's face suppresses triggers but never disarms; disarm is an explicit click | A photo of the owner would match SFace; no liveness check needed in v1 |
+| 2026-11-25 | Camera keeps delivering frames while the screen is locked | Spike: 300 frames in 10 s while locked, so Away can keep watching after it locks |
+| 2026-11-25 | M1 FaceTime HD has only fixed 30 fps formats (640×480, 1280×720) | "Low fps" is a software throttle; the sensor stays at 30 fps. Power lever is probably duty-cycling (pending power table) |
 
 ## Open risks
 
