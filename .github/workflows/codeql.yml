@@ -1,0 +1,44 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  actions:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: actions
+      - uses: github/codeql-action/analyze@v4
+
+  swift:
+    runs-on: macos-15
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+      # CodeQL fails when there is no Swift source, so skip until Package.swift exists.
+      - name: Check for Swift package
+        id: pkg
+        run: echo "exists=$([ -f Package.swift ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: github/codeql-action/init@v4
+        if: steps.pkg.outputs.exists == 'true'
+        with:
+          languages: swift
+          build-mode: manual
+      - name: Build
+        if: steps.pkg.outputs.exists == 'true'
+        run: swift build
+      - uses: github/codeql-action/analyze@v4
+        if: steps.pkg.outputs.exists == 'true'
