@@ -2,6 +2,25 @@
   "detector": {
     "ignoreRules": [],
     "ignoreFiles": [],
-    "ignoreValues": []
+    "ignoreValues": [
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "graphify-out/graph.html"
+        ],
+        "createdAt": "2026-11-25T10:52:54.294Z",
+        "reason": "Claude: generated graphify visualization, gitignored, not a byaku UI"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          "graphify-out/graph.html"
+        ],
+        "createdAt": "2026-11-25T10:52:54.312Z",
+        "reason": "Claude: generated graphify visualization, gitignored, not a byaku UI"
+      }
+    ]
   }
 }
