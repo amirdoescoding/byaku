@@ -7,6 +7,11 @@
 - [ ] Yawed-face owner match in Swift (margin +0.228 vs Python +0.633; −30° worst). Try: landmarks on a tighter or upright crop, a different
       eye/nose mapping judged by pixel error on real yawed faces, or multi-pose enrollment. Pre-register before re-running.
 
+## Done: PR4 brand (2026-11-25)
+- [x] Round 1 exploration (6 symbols × 3 weights, 5 faces, 4 violets) → E2 + Rondel 500 + iris/dusk
+- [x] Final SVG set, palette.md (computed contrast), app icon, menu-bar template, philosophy.md
+- [ ] Export the app icon to `.icns` and the menu-bar template to PDF when the app target exists
+
 ## Done: PR3 Swift alignment (2026-11-25)
 - [x] Similarity solve + bilinear warp; warp parity 1.00000 vs alignCrop (`byaku align`)
 - [x] Vision landmarks → 5 points on the live path (32BGRA); landmark parity reported (FAIL 0.98, weak proxy)
