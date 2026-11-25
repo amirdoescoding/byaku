@@ -3,11 +3,14 @@
 Usage: .build/debug/byaku match ml/models/sface.mlpackage owner:lightA-yaw0 ... stranger:photo1 ... | (cd ml && uv run score_segments.py)
 
 Swift counting rule, pre-registered 2026-11-25 before any Swift data:
-  counted frame = phase active (10 s after Enter), exactly one Vision face, rect confidence >= 0.9, and
+  counted frame = phase active (10 s after Enter), exactly one Vision face, rect confidence >= 0.5, and
   landmarks + alignment + embedding all succeeded on it; camera at 5 fps
   enrollment = 5 s, same rule, mean of unit embeddings (owner alone)
   segments with < 20 frames are ignored; bar v2 unchanged (sface_live.summary): p5 of EVERY owner segment > p95(all strangers),
   >= 2 distinct strangers; threshold = midpoint of p5(owner) and p95(stranger). This run gates PR3.
+Amended 2026-11-25, before any scored data: confidence cut 0.9 -> 0.5. The 0.9 was YuNet's scale; Vision rect
+  confidence for a clear frontal owner face is 0.82-0.85, so 0.9 rejected every enrollment frame. The cut only drops
+  junk detections; it was set from that confidence readout alone, with no owner/stranger scores seen.
 """
 import sys
 

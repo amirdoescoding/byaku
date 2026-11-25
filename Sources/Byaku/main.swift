@@ -191,7 +191,7 @@ func alignCheck(model: String, parityDir: String) -> Never {
 
 /// Live owner match on the pure-Swift path (Vision landmarks -> align -> SFace), scored by ml/score_segments.py.
 /// Prompts go to stderr; stdout carries only `seg <n> <label> <score>` lines. Embeddings stay in memory.
-/// Counting rule (pre-registered, see score_segments.py): exactly one face, rect confidence >= 0.9, aligned embedding.
+/// Counting rule (pre-registered, see score_segments.py): exactly one face, rect confidence >= 0.5, aligned embedding.
 func match(model: String, phases: [String]) -> Never {
     let fps = 5.0, enrollS = 5.0, phaseS = 10.0
     let cam = Camera(fps: fps)
@@ -202,7 +202,11 @@ func match(model: String, phases: [String]) -> Never {
     cam.onEmbedding = { pending = ($0, $1) }
     cam.onFaces = { faces in
         defer { pending = nil }
-        guard faces.count == 1, let (face, v) = pending, face.confidence >= 0.9 else { return }
+        if enroll != nil || seg != nil {  // why a frame does or doesn't count, live on stderr
+            FileHandle.standardError.write(String(format: "  faces=%d conf=%@ embedded=%@\n", faces.count,
+                faces.map { String(format: "%.2f", $0.confidence) }.joined(separator: ","), pending == nil ? "no" : "yes").data(using: .utf8)!)
+        }
+        guard faces.count == 1, let (face, v) = pending, face.confidence >= 0.5 else { return }
         if enroll != nil { enroll!.append(unit(v)) }
         if let owner, let seg { print(String(format: "seg %d %@ %.4f", seg.n, seg.label, cosine(unit(v), owner))) }
     }
@@ -214,7 +218,7 @@ func match(model: String, phases: [String]) -> Never {
     cam.queue.sync { enroll = [] }
     wait(enrollS)
     let e = cam.queue.sync { () -> [[Float]] in defer { enroll = nil }; return enroll! }
-    guard !e.isEmpty else { fail("no enrollment frames (exactly one face needed)", code: 70) }
+    guard !e.isEmpty else { fail("no enrollment frame passed the counting rule (see the per-frame lines)", code: 70) }
     let mean = (0..<e[0].count).map { i in e.reduce(0) { $0 + $1[i] } }
     cam.queue.sync { owner = unit(mean) }
     say("enrolled from \(e.count) frames")
