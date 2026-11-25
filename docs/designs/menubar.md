@@ -9,22 +9,18 @@ Base: `design/brand/final/menubar-template.svg`, viewBox `4 4 56 56`, centre (32
 two blade crescents. Rendered 16 pt inside an 18x18 pt canvas (36x36 px @2x). 1 unit = 0.57 px @2x.
 No animation, no pulse, in any state.
 
-| State | Shape change on the 56-unit mark | Type | Colour |
+| State | Mark | Type | Colour |
 |---|---|---|---|
-| Off | Crescents removed. Empty ring only. | template | system |
-| Guarding | Unchanged: ring + both crescents. | template | system |
-| Alert | Guarding mark + solid dot, r 6, at (32,32) (r 3.5 vanished at 16 pt in the mockup). Gap to nearest crescent edge is 4 units or more. | non-template | dusk `#6A5DB8` on light bars, iris `#C8BFEF` on dark bars |
-| Error | Guarding mark + 45-degree slash along x+y=64, butt caps, clipped to the ring's outer edge, stroke 4.5. Knock out 1.5 units each side of the slash from ring and crescents. | template | system |
+| Off | Full mark: ring + both blades. | template | system (ink) |
+| Guarding | Full mark, unchanged shape. | non-template | dusk `#6A5DB8` on light bars, iris `#C8BFEF` on dark bars |
+| Alert | Full mark + solid dot, r 6, at (32,32) (r 3.5 vanished at 16 pt). | non-template | violet, as Guarding |
+| Error | Full mark + 45-degree slash along x+y=64, butt caps, clipped to the ring's outer edge, stroke 4.5. Knock out 1.5 units each side of the slash. | template | system (ink) |
 
-- Distinguishing without colour: empty ring / two crescents / crescents + centre dot / crescents + diagonal cut.
-  Colour (alert only) is redundant, not load-bearing.
-- Pick the alert asset from `button.effectiveAppearance` (menu-bar appearance, not app appearance). Ship 2 alert PDFs.
-- Check at 16 pt on both bars before sign-off. Fallback if the slash clutters the crescents: drop crescents under the
-  slash only. Do not thicken the stroke.
-- Guarding must differ from Off beyond the system green camera dot. It does, by the crescents. The dot is not ours:
-  it sits in the system area, also lights for other apps, and an Off icon must never look like a guarding one.
-  Keep our own state readable without it.
-- Violet appears only in Alert (DESIGN 8).
+- User decision (2026-11-25): the mark keeps its blades in every state; violet = the eye is open (Guarding, Alert).
+- **Off vs Guarding differ by colour only.** That breaks DESIGN §6, and the user accepted it. Covered by: the VoiceOver label, the menu
+  status line, and the system camera dot. Alert (dot) and Error (slash) still differ by shape.
+- Pick the violet from `button.effectiveAppearance` (menu-bar appearance, not app appearance).
+- The state swap is instant: a menu-bar icon doesn't animate (Pale Watch: nothing pulses).
 
 VoiceOver (set on the button, role stays "menu button"):
 
@@ -86,7 +82,7 @@ The Rondel wordmark does not appear: the name is said once (philosophy) and the 
 |---|---|
 | Class | `NSPanel`, `.borderless` + `.nonactivatingPanel`, floating, can become key (for Esc/VoiceOver), not key-stealing from the user's app |
 | Size | 320 x 160 pt, fixed |
-| Position | Horizontally centred on the main screen, 8 pt below the menu bar (near the camera, so the user faces it) |
+| Position | Under its trigger, the status item: top edge 8 pt below the menu bar, horizontally centred on the icon, clamped 8 pt inside the screen |
 | Fill | `surface`; 1 pt `line` border; 12 pt corner radius; standard window shadow only |
 | Padding | 24 pt all sides |
 | Row 1 (h 56) | Ring 48x48 at x 24, y 28 (vertically centred in the 56 row). Text column x 88, w 208, 16 pt gap from ring. |
@@ -101,7 +97,7 @@ semibold, monospaced digits, `ink`.
 
 | Phase | Ring | Title | Body | Buttons |
 |---|---|---|---|---|
-| Starting (camera warm-up, up to 2 s; the 5 s starts at the first frame) | track only | "Starting camera…" | none | Cancel |
+| Starting (camera warm-up, up to 2 s; the 5 s starts at the first frame) | track + a 90° `ink` arc spinning at 600 ms/turn, linear | "Starting camera…" | none | Cancel |
 | Capturing, 5 s | fills 0 to 100% linearly in 5.0 s; centre 5, 4, 3, 2, 1 | "Look at the screen" | "Be the only person in view. Nothing is saved except a face print." | Cancel |
 | Success | full `ink` ring; centre a check: 3 pt polyline (15,25) (21,31) (33,18) in the 48 box | "Face saved" | "Stored on this Mac only. Delete it any time from the menu." | Done (auto-closes after 3 s) |
 | Failure: no face | `mute` ring with a 30 degree seam at 12 o'clock; centre empty | "No face seen" | "Face the screen in good light, then try again." | Try again, Cancel |
@@ -131,7 +127,53 @@ Re-opening from the menu while open brings the existing panel forward.
 | mute | #66636F | #8F8C99 |
 | accent (icon, Alert only) | #6A5DB8 | #C8BFEF |
 
-## 5. Open questions for approval
+## 5. Motion
+
+Rule: everything a trigger opens grows **from that trigger**, never from its own centre. In this build, that means the panel grows from the status item.
+NSMenu is system-drawn and keeps its native animation.
+
+| Token | Value | Use |
+|---|---|---|
+| `ease.out` | cubic-bezier(0.23, 1, 0.32, 1) | every UI transition; no ease-in anywhere |
+| `dur.enter` | 200 ms | panel in: opacity 0 → 1, scale 0.96 → 1, anchor = the icon's bottom centre |
+| `dur.exit` | 150 ms | panel out: the same path in reverse, back into the icon (Cancel, Done, Esc, auto-close) |
+| `dur.hover` | 120 ms | button background/border shift on hover |
+| `dur.press` | 100 ms | button press: scale 0.97 on mouse-down (feedback on press, not release); release springs back in 160 ms |
+| `dur.check` | 240 ms | success check drawn on as one stroke (stroke-end 0 → 1) |
+| spinner | 600 ms/turn, linear | Starting phase only |
+| countdown | 1 s per step, linear | it's a clock, so it's linear on purpose |
+
+- Every animation is under 300 ms except the spinner and the countdown, which show time and aren't transitions.
+- **Alive buttons:**
+  - hover tint (secondary: 6% ink wash plus a darker border; primary: ink lifts 14% toward bg)
+  - press scale 0.97
+  - keyboard focus ring = 2 pt accent, the one place violet appears on the panel (focus = *seen*)
+  - Return/Esc fire the same press feedback
+- **Reduce Motion:**
+  - no scale anywhere: panel and buttons fade/tint only
+  - the spinner is a static arc
+  - the check appears whole
+  - the countdown steps per the table in §3
+- Prototype: `design/menubar/mockups.html` §motion. Click the icon to see it.
+
+## 6. Components, tokens, guard rails
+
+Typed components: every prop is an enum, with no stringly-typed state and no raw colours or durations at call sites.
+
+| Component | Props | Notes |
+|---|---|---|
+| `StatusIcon` | `state: GuardState` | Draws the mark from the template geometry; picks template vs violet itself |
+| `ProgressRing` | `phase: .starting / .counting(remaining: Int) / .done / .failed` | 48 pt; owns the spinner, countdown and check |
+| `PanelButton` | `role: .primary / .secondary`, `title`, `action` | Owns hover, press and focus states; the only button on custom surfaces |
+| `EnrollPanel` | `anchor: NSStatusItem` | Positions itself and animates from the anchor |
+
+- Semantic tokens live in one file, `Tokens.swift`: colours by role (`surface`, `line`, `ink`, `mute`, `bg`, `accent`) for light/dark, plus the motion tokens above.
+- CI guard (`scripts/check-ui.sh`, run in the Swift workflow) fails the build when:
+  - a hex colour or `NSColor(red:`/`(srgbRed:` appears outside `Tokens.swift`
+  - an animation duration literal appears outside `Tokens.swift`
+- Swift's type checker covers the "strict props" part. A grep is enough for the token rule, and SwiftLint isn't worth a new dependency yet.
+
+## 7. Open questions for approval
 
 1. Slash on the full mark (Error) vs a ring seam: slash chosen as it reads as "off the air", seam is kept for enrollment failure.
-2. Panel position under the menu bar, centred, assumes the built-in camera at top centre.
+2. Panel sits under the status item (it grows from its trigger), so it is off-centre from the camera. The copy says "look at the screen", which is close enough at laptop distance.

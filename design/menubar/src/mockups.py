@@ -1,5 +1,5 @@
 """byaku menu-bar mockups from docs/designs/menubar.md (build 1). Pale Watch rules: design/brand/philosophy.md.
-Writes ../mockups.html and ../sheet-{icons,menu,panel}.png. Run from this folder:
+Writes ../mockups.html and ../sheet-{icons,menu,panel,motion}.png. Run from this folder:
   uv run --with playwright python mockups.py"""
 import math, pathlib
 OUT = pathlib.Path(__file__).resolve().parent.parent
@@ -18,7 +18,7 @@ S = 28 / math.sqrt(2)
 SLASH = f"M{32 - S:.3f} {32 + S:.3f}L{32 + S:.3f} {32 - S:.3f}"
 
 def icon(state, c, px=16):
-    mark = RING.format(c=c) + ("" if state == "off" else BLADES.format(c=c))
+    mark = RING.format(c=c) + BLADES.format(c=c)  # every state keeps the full mark
     extra = ""
     if state == "alert":
         mark += f'<circle cx="32" cy="32" r="6" fill="{c}"/>'
@@ -30,11 +30,11 @@ def icon(state, c, px=16):
     return (f'<svg width="{px}" height="{px}" viewBox="4 4 56 56" xmlns="http://www.w3.org/2000/svg" '
             f'aria-hidden="true">{extra}{mark}</svg>')
 
-STATES = [("off", "Off", "empty ring"), ("guarding", "Guarding", "ring + crescents"),
-          ("alert", "Alert", "+ centre dot, violet"), ("error", "Error", "+ diagonal cut")]
+STATES = [("off", "Off", "full mark, ink (template)"), ("guarding", "Guarding", "full mark, violet"),
+          ("alert", "Alert", "+ centre dot, violet"), ("error", "Error", "+ diagonal cut, ink")]
 
 def icon_color(state, t):
-    return TH[t]["accent"] if state == "alert" else TH[t]["ink"]
+    return TH[t]["accent"] if state in ("guarding", "alert") else TH[t]["ink"]
 
 def bar(state, t):
     k = TH[t]
@@ -122,6 +122,85 @@ def panels_sheet(t):
                     for n, r, a, b, c in cases)
     return f'<div class="panel" style="background:{k["bg"]}"><p class="cap" style="color:{k["mute"]}">{t}</p><div class="row3">{cells}</div></div>'
 
+
+# ---- live motion prototype: open mockups.html in a browser and click the icon ----------------------------
+# Motion tokens (docs/designs/menubar.md §5): ease-out only, everything under 300 ms, origin = the trigger.
+DEMO_CSS = """
+.demo{--surface:#FFFFFF;--line:#E1E0E6;--ink:#0E0D12;--mute:#66636F;--bg:#F5F5F7;--accent:#6A5DB8;--bar:#E8E7EC;
+  --out:cubic-bezier(.23,1,.32,1);--enter:200ms;--exit:150ms;--press:100ms;--hover:120ms;
+  position:relative;height:330px;padding:24px 48px;background:var(--bg)}
+.demo.dark{--surface:#17161C;--line:#25232C;--ink:#ECEBF0;--mute:#8F8C99;--bg:#0E0D12;--accent:#C8BFEF;--bar:#1E1D23}
+.demo .bar{background:var(--bar)}.demo .clock{color:var(--ink)}
+.trig{all:unset;display:flex;cursor:default;border-radius:4px;padding:2px 3px;transition:background var(--hover) var(--out)}
+.trig:hover,.trig[aria-expanded=true]{background:color-mix(in srgb,var(--ink) 12%,transparent)}
+.dpanel{position:absolute;top:64px;left:40px;opacity:0;transform:scale(.96);pointer-events:none;
+  transition:opacity var(--exit) var(--out),transform var(--exit) var(--out)}
+.dpanel.open{opacity:1;transform:none;pointer-events:auto;transition-duration:var(--enter)}
+.dpanel .card{background:var(--surface);border-color:var(--line)}.dpanel .tt{color:var(--ink)}.dpanel .bd{color:var(--mute)}
+.abtn{height:32px;min-width:80px;padding:0 14px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);
+  font:500 13px/1 -apple-system,system-ui;cursor:default;
+  transition:background var(--hover) var(--out),border-color var(--hover) var(--out),transform 160ms var(--out)}
+.abtn:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);border-color:color-mix(in srgb,var(--ink) 22%,var(--line))}
+.abtn:active{transform:scale(.97);transition-duration:var(--press)}
+.abtn.primary{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.abtn.primary:hover{background:color-mix(in srgb,var(--ink) 86%,var(--bg))}
+.abtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.spin{transform-origin:24px 24px;animation:spin 600ms linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.prog{transition:stroke-dashoffset 1000ms linear}
+.chk{stroke-dasharray:30;stroke-dashoffset:30;transition:stroke-dashoffset 240ms var(--out)}.ok .chk{stroke-dashoffset:0}
+@media (prefers-reduced-motion:reduce){.dpanel,.dpanel.open{transform:none}.abtn:active{transform:none}
+  .spin{animation:none}.chk{transition:none}}
+"""
+
+def demo(t):
+    cls = "demo dark" if t == "dark" else "demo"
+    k = TH[t]
+    ghosts = "".join('<span class="ghost"></span>' for _ in range(3))
+    return f"""<div class="{cls}" data-demo>
+<div class="bar"><span class="sp"></span><button class="trig" aria-label="byaku, Guard off" aria-expanded="false">{icon("guarding", k["accent"])}</button>{ghosts}<span class="clock">Wed 14:02</span></div>
+<div class="dpanel" role="dialog" aria-label="Set up face"><div class="card">
+<div class="r1"><svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
+<circle cx="24" cy="24" r="22" fill="none" stroke="var(--line)" stroke-width="4"/>
+<path class="spin" d="M24 2A22 22 0 0 1 46 24" fill="none" stroke="var(--ink)" stroke-width="4"/>
+<circle class="prog" cx="24" cy="24" r="22" fill="none" stroke="var(--ink)" stroke-width="4" stroke-dasharray="{CIRC:.2f}" stroke-dashoffset="{CIRC:.2f}" transform="rotate(-90 24 24)" visibility="hidden"/>
+<text class="num" x="24" y="24" dy=".36em" text-anchor="middle" fill="var(--ink)" style="font:600 20px -apple-system,system-ui;font-variant-numeric:tabular-nums"></text>
+<polyline class="chk" points="15,25 21,31 33,18" fill="none" stroke="var(--ink)" stroke-width="3"/></svg>
+<div class="tx"><div class="tt">Starting camera…</div><div class="bd"></div></div></div>
+<div class="r2"><button class="abtn sec">Cancel</button><button class="abtn primary" hidden>Done</button></div></div></div></div>"""
+
+DEMO_JS = """
+document.querySelectorAll('[data-demo]').forEach(d => {
+  const trig = d.querySelector('.trig'), pan = d.querySelector('.dpanel'), card = pan.querySelector('.card');
+  const spin = d.querySelector('.spin'), prog = d.querySelector('.prog'), num = d.querySelector('.num');
+  const tt = d.querySelector('.tt'), bd = d.querySelector('.bd'), sec = d.querySelector('.sec'), pri = d.querySelector('.primary');
+  const C = prog.getAttribute('stroke-dasharray'); let timers = [];
+  const later = (ms, f) => timers.push(setTimeout(f, ms));
+  function origin() {  // grow from the icon, not from the panel's centre
+    const a = trig.getBoundingClientRect(), b = pan.getBoundingClientRect();
+    pan.style.transformOrigin = `${a.left + a.width / 2 - b.left}px ${a.bottom - b.top}px`;
+  }
+  function reset() {
+    timers.forEach(clearTimeout); timers = []; card.classList.remove('ok');
+    spin.style.display = ''; prog.setAttribute('visibility', 'hidden'); prog.style.strokeDashoffset = C; num.textContent = '';
+    tt.textContent = 'Starting camera…'; bd.textContent = ''; sec.hidden = false; pri.hidden = true;
+  }
+  function run() {
+    reset();
+    later(900, () => { spin.style.display = 'none'; prog.setAttribute('visibility', 'visible');
+      tt.textContent = 'Look at the screen'; bd.textContent = 'Be the only person in view. Nothing is saved except a face print.';
+      for (let i = 0; i <= 5; i++) later(i * 1000, () => { num.textContent = i < 5 ? 5 - i : '';
+        prog.style.strokeDashoffset = C * (1 - Math.min(i + 1, 5) / 5); });
+      later(5000, () => { card.classList.add('ok'); tt.textContent = 'Face saved';
+        bd.textContent = 'Stored on this Mac only. Delete it any time from the menu.'; sec.hidden = true; pri.hidden = false; pri.focus(); });
+    });
+  }
+  const open = v => { origin(); pan.classList.toggle('open', v); trig.setAttribute('aria-expanded', v); v ? run() : reset(); };
+  trig.onclick = () => open(!pan.classList.contains('open'));
+  sec.onclick = pri.onclick = () => open(false);
+  d.addEventListener('keydown', e => { if (e.key === 'Escape') open(false); });
+});
+"""
+
 CSS = """
 *{box-sizing:border-box}body{margin:0;font:13px/1.4 -apple-system,system-ui,sans-serif}
 .pair{display:grid;grid-template-columns:1fr;gap:0;width:1200px}
@@ -148,8 +227,9 @@ figcaption{font:500 12px/1.4 -apple-system,system-ui;display:flex;flex-direction
 
 def page():
     sec = lambda sid, f: f'<section id="{sid}" class="pair">{f("light")}{f("dark")}</section>'
-    return (f'<!doctype html><html><head><meta charset="utf-8"><title>byaku menu-bar mockups</title><style>{CSS}</style></head><body>'
-            + sec("icons", icons_sheet) + sec("menu", menus_sheet) + sec("panel", panels_sheet) + "</body></html>")
+    return (f'<!doctype html><html><head><meta charset="utf-8"><title>byaku menu-bar mockups</title><style>{CSS}{DEMO_CSS}</style></head><body>'
+            + sec("icons", icons_sheet) + sec("menu", menus_sheet) + sec("panel", panels_sheet)
+            + f'<section id="motion" class="pair">{demo("light")}{demo("dark")}</section><script>{DEMO_JS}</script></body></html>')
 
 if __name__ == "__main__":
     html = page()
@@ -160,5 +240,8 @@ if __name__ == "__main__":
         pg.set_content(html, wait_until="networkidle")
         for s in ("icons", "menu", "panel"):
             pg.locator(f"#{s}").screenshot(path=str(OUT / f"sheet-{s}.png"))
+        for trig in pg.locator(".trig").all(): trig.click()
+        pg.wait_for_timeout(3200)  # both panels mid-countdown
+        pg.locator("#motion").screenshot(path=str(OUT / "sheet-motion.png"))
         b.close()
     print("wrote", OUT / "mockups.html", "and 3 sheets")
