@@ -18,6 +18,9 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     var embed: VNCoreMLRequest? = nil      // set by `detect --embed` / `match`: SFace on the largest face, aligned
     private(set) var embedsRun = 0
     var onEmbedding: (VNFaceObservation, [Float]) -> Void = { _, _ in }  // largest face (rect) + embedding, before onFaces
+    /// App Guard: one entry per face facing the screen (gaze gate first, then embed), nil = couldn't embed. Before onFaces.
+    /// When set, it replaces the largest-face path; `detect --embed` and `match` leave it nil and keep their pre-registered behaviour.
+    var onFrame: (([[Float]?]) -> Void)? = nil
     private var dropTo: Double? = nil      // software throttle when the sensor can't go this slow
     private var lastProcessed = Date.distantPast
     private let handler = VNSequenceRequestHandler()
@@ -93,8 +96,21 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         framesProcessed += 1
         try? handler.perform([request], on: pb)
         let faces = request.results ?? []
-        // ponytail: largest face only; per-face embedding lands with the Guard policy.
-        if let embed, let face = faces.max(by: { $0.boundingBox.width < $1.boundingBox.width }),
+        if let onFrame, let embed {
+            // ponytail: at most 4 facing faces, largest first; each costs ~20–25 mW at 1 fps. Raise if crowds matter.
+            let facing = faces.filter { facesScreen(yaw: $0.yaw?.floatValue, pitch: $0.pitch?.floatValue) }
+                .sorted { $0.boundingBox.width > $1.boundingBox.width }.prefix(4)
+            let w = CVPixelBufferGetWidth(pb), h = CVPixelBufferGetHeight(pb)
+            let marked = facing.isEmpty ? [] : landmarks(Array(facing), perform: { try handler.perform([$0], on: pb) })
+            var out: [[Float]?] = marked.map { lm in
+                guard let pts = fivePoints(lm, width: w, height: h), let crop = alignedFace(pb, points: pts) else { return nil }
+                try? VNImageRequestHandler(cvPixelBuffer: crop).perform([embed])
+                embedsRun += 1
+                return embedding(embed)
+            }
+            out += Array(repeating: nil, count: max(0, facing.count - marked.count))  // landmarks missed a face
+            onFrame(out)
+        } else if let embed, let face = faces.max(by: { $0.boundingBox.width < $1.boundingBox.width }),
            let lm = landmarks([face], perform: { try handler.perform([$0], on: pb) }).first,
            let pts = fivePoints(lm, width: CVPixelBufferGetWidth(pb), height: CVPixelBufferGetHeight(pb)),
            let crop = alignedFace(pb, points: pts) {

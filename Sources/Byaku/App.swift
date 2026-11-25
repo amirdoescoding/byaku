@@ -104,12 +104,10 @@ final class AppController: NSObject, NSMenuDelegate {
         guardOn = true
         let cam = Camera(fps: 1)  // 1 fps + embed: ~0.3–0.4 W camera/Vision + ~20–25 mW SFace (ARCHITECTURE power rows)
         cam.embed = embedder
-        var pending: (VNFaceObservation, [Float])?
-        cam.onEmbedding = { pending = ($0, $1) }  // on cam.queue, just before onFaces for the same frame
-        cam.onFaces = { [weak self] faces in
-            let score = pending.map { cosine(unit($0.1), owner) }
-            pending = nil
-            let v = verdict(faces: faces.count, score: score)
+        var debounce = Debounce()  // fresh per Guard start; touched only on cam.queue
+        cam.onFrame = { [weak self] embeddings in
+            let looker = frameHasLooker(embeddings.map { $0.map { cosine(unit($0), owner) } })
+            let v: GuardState = debounce.add(looker) ? .alert : .guarding
             DispatchQueue.main.async { if self?.guardCam === cam, self?.state != v { self?.set(v) } }
         }
         guardCam = cam

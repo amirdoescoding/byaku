@@ -21,12 +21,34 @@ func ownerTemplate(_ frames: [[Float]]) -> [Float]? {
     return unit((0..<first.count).map { i in frames.reduce(0) { $0 + $1[i] } })
 }
 
-/// One Guard frame → state. `score` = cosine of the largest face to the owner, nil if it couldn't be embedded.
-/// ponytail: only the largest face is embedded, so any second face counts as a looker; per-face embedding lands with the policy PR.
-func verdict(faces: Int, score: Float?) -> GuardState {
-    if faces >= 2 { return .alert }
-    if faces == 1, let score, score < ownerThreshold { return .alert }
-    return .guarding  // nobody, the owner, or an unembeddable face (Guard fails open)
+/// Gaze gate v0: a face counts as looking at the screen when its head pose is within these limits (radians, Vision rev 3).
+/// Provisional (docs/designs/guard-actions.md §1); tune live with a second person. Missing pose counts as facing (don't miss a looker).
+let maxYaw: Float = 30 * .pi / 180, maxPitch: Float = 25 * .pi / 180
+
+func facesScreen(yaw: Float?, pitch: Float?) -> Bool { abs(yaw ?? 0) <= maxYaw && abs(pitch ?? 0) <= maxPitch }
+
+/// One Guard frame. `scores` = owner cosine of every face that passed the gaze gate, nil = couldn't embed.
+/// A looker scores below the owner threshold, or can't be embedded while 2+ faces face the screen.
+/// A lone unembeddable face never counts (Guard fails open).
+func frameHasLooker(_ scores: [Float?]) -> Bool {
+    if scores.count == 1 { return scores[0].map { $0 < ownerThreshold } ?? false }
+    return scores.contains { $0 == nil || $0! < ownerThreshold }
+}
+
+/// Alert fires when n of the last m frames have a looker, clears after `clear` clean frames in a row.
+/// At 1 fps: ~2 s to fire, ~3 s to clear. Make a new one when Guard (re)starts.
+struct Debounce {
+    let n = 2, m = 3, clear = 3
+    private var recent: [Bool] = [], clean = 0
+    private(set) var alert = false
+
+    mutating func add(_ looker: Bool) -> Bool {
+        recent = Array((recent + [looker]).suffix(m))
+        clean = looker ? 0 : clean + 1
+        if !alert, recent.filter({ $0 }).count >= n { alert = true }
+        if alert, clean >= clear { alert = false }
+        return alert
+    }
 }
 
 /// Owner data = the 128 floats only, never an image (invariant 5). One file, one-click delete.
