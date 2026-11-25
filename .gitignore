@@ -53,3 +53,17 @@ logs/
 fixtures/large/
 .claude/*.local.*
 .gstack
+.impeccable/hook.cache.json
+
+# ==========================
+# BYAKU: Swift, Python ml/, models, graphify
+# ==========================
+.build/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+.venv/
+ml/models/
+*.onnx
+*.mlpackage
+*.mlmodel
+graphify-out/

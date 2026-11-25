@@ -1,0 +1,15 @@
+.agents/
+.claude/skills/
+.claude/agents/
+.claude/impeccable-*.md
+.gstack/
+.impeccable/
+.venv/
+.build/
+.swiftpm/
+ml/.venv/
+ml/models/
+*.onnx
+*.mlpackage
+*.mlmodel
+graphify-out/
