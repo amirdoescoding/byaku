@@ -26,6 +26,7 @@ final class AppController: NSObject, NSMenuDelegate {
     private var panel: EnrollPanel?
     private var enrollCam: Camera?
     private var enrollRun = 0  // bumps on cancel/retry so stale callbacks are dropped
+    private var countingRun = -1  // the run whose countdown has begun (main thread)
 
     init(model: String) {
         super.init()
@@ -76,7 +77,7 @@ final class AppController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         let g = entry("Guard", #selector(toggleGuard), key: "g")
         g.state = guardOn ? .on : .off
-        g.isEnabled = owner != nil
+        g.isEnabled = owner != nil && enrollCam == nil  // one camera user at a time
         menu.addItem(g)
         menu.addItem(.separator())
         menu.addItem(entry(owner == nil ? "Set up face…" : "Set up face again…", #selector(setUpFace), key: "e"))
@@ -112,7 +113,7 @@ final class AppController: NSObject, NSMenuDelegate {
         }
         guardCam = cam
         set(.guarding)
-        start(cam) { [weak self] error in self?.guardFailed(error) }
+        start(cam) { [weak self] error in if self?.guardCam === cam { self?.guardFailed(error) } }
     }
 
     private func stopGuard() {
@@ -132,9 +133,13 @@ final class AppController: NSObject, NSMenuDelegate {
     }
 
     /// Camera.start blocks (permission prompt, startRunning): run it off main, report failure on main.
+    /// If the user cancelled while it was starting (permission prompt, warm-up), stop it: no camera without an owner.
     private func start(_ cam: Camera, failed: @escaping (Error) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            do { try cam.start() } catch { DispatchQueue.main.async { failed(error) } }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            do {
+                try cam.start()
+                DispatchQueue.main.async { if cam !== self?.guardCam, cam !== self?.enrollCam { cam.stop() } }
+            } catch { DispatchQueue.main.async { failed(error) } }
         }
     }
 
@@ -147,13 +152,14 @@ final class AppController: NSObject, NSMenuDelegate {
         p.onCancel = { [weak self] in self?.endEnrollment() }
         p.onRetry = { [weak self] in self?.capture() }
         p.onOpenSettings = { [weak self] in self?.openCameraSettings(); self?.endEnrollment() }
+        let shown = p.isVisible && p.alphaValue == 1  // already open (any phase): just bring it forward
         p.present(below: button)
-        if enrollCam == nil { capture() }
+        if !shown { capture() }
     }
 
     private func capture() {
         guard let embedder else { panel?.show(.failed("The face model is missing.")); return }
-        guardCam?.stop(); guardCam = nil  // one camera user at a time; Guard resumes after
+        if guardCam != nil { guardCam?.stop(); guardCam = nil; set(.off) }  // one camera user at a time; Guard resumes after
         enrollCam?.stop()
         enrollRun += 1
         let run = enrollRun, seconds = 5
@@ -161,6 +167,9 @@ final class AppController: NSObject, NSMenuDelegate {
         cam.embed = embedder
         enrollCam = cam
         panel?.show(.starting)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.startTimeout) { [weak self] in  // no first frame: give up
+            if self?.enrollCam === cam, self?.countingRun != run { self?.finish(run, .failed("The camera didn't start. Try again.")) }
+        }
         var pending: (VNFaceObservation, [Float])?, frames: [[Float]] = [], started = false, several = false
         cam.onEmbedding = { pending = ($0, $1) }
         cam.onFaces = { [weak self] faces in  // cam.queue
@@ -187,9 +196,10 @@ final class AppController: NSObject, NSMenuDelegate {
             // ponytail: at least 10 counted frames (2 s at 5 fps) = "a face was seen"; tune with real failures.
             guard f.count >= 10, let template = ownerTemplate(f) else { return finish(run, .noFace) }
             do { try store.save(template); owner = template; finish(run, .saved) }
-            catch { finish(run, .failed("Couldn't save the face print: \(error.localizedDescription)")) }
+            catch { finish(run, .failed("Couldn't save. Try again.")) }
             return
         }
+        countingRun = run
         panel?.show(.counting(n))
         DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.countStep) { [weak self] in
             self?.countdown(run: run, cam: cam, from: n - 1, frames: frames)
@@ -217,7 +227,8 @@ final class AppController: NSObject, NSMenuDelegate {
     // MARK: other actions
 
     @objc private func deleteFace() {
-        do { try store.delete() } catch { set(.error, reason: "couldn't delete face data"); return }
+        // ponytail: a failed delete only beeps; it's one file in our own folder. Add a real alert if it ever happens.
+        do { try store.delete() } catch { NSSound.beep(); return }
         owner = nil
         stopGuard()
     }

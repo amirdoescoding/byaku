@@ -68,6 +68,7 @@ Status line copy (row 1):
 | Error: other | "Not guarding: camera unavailable" |
 
 - Error copy states the consequence ("Not guarding"), because Guard fails open.
+- Delete failure (one file in our own folder) only beeps; no error state, since Guard may still be running.
 - Delete: no confirmation. It is one deliberate menu pick, sits away from Quit, and redoing takes 5 s with nothing
   else lost. Result: face data removed, Guard turned off, status becomes "Set up your face to turn on Guard".
   Revisit only if enrollment ever becomes expensive.
@@ -105,8 +106,12 @@ semibold, monospaced digits, `ink`.
 | Failure: camera denied | same seam ring | "Camera access is off" | "Allow byaku in System Settings, then try again." | Open camera settings…, Cancel |
 
 - Failure is shape (seam) plus words; success is a check plus words. No colour carries meaning.
-- Failure rule (for the implementer to confirm): a second face at any moment fails at once; no face fails at the end if
-  fewer than 80% of frames had exactly one face.
+- Failure rule (as built):
+  - A second face in any frame fails at once ("More than one face").
+  - At the end, "No face seen" if fewer than 10 frames passed the pre-registered counting rule (exactly one face, conf ≥ 0.5,
+    aligned embedding). 10 frames is 2 s at 5 fps. That's provisional; tune it from real failures.
+  - No first frame within 4 s → "Couldn't set up face" / "The camera didn't start. Try again."
+  - Save error → "Couldn't set up face" / "Couldn't save. Try again." The copy stays short and fixed, never a system error string.
 - Reduce Motion: no continuous sweep. The ring advances in five 72 degree steps, one per second, with the number,
   no easing. Check/seam appear instantly. Auto-close is unchanged.
 - Return = primary button, Esc = Cancel. Success does not turn Guard on.
@@ -147,7 +152,8 @@ NSMenu is system-drawn and keeps its native animation.
 - **Alive buttons:**
   - hover tint (secondary: 6% ink wash plus a darker border; primary: ink lifts 14% toward bg)
   - press scale 0.97
-  - keyboard focus ring = 2 pt accent, the one place violet appears on the panel (focus = *seen*)
+  - keyboard focus ring = 2 pt accent, the one place violet appears on the panel (focus = *seen*). Only when the keyboard moved focus there:
+    opening the panel focuses nothing, and Return reaches the primary button through its key equivalent
   - Return/Esc fire the same press feedback
 - **Reduce Motion:**
   - no scale anywhere: panel and buttons fade/tint only

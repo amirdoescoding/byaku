@@ -135,6 +135,7 @@ final class ProgressRing: NSView {
         progress.strokeEnd = 0; check.strokeEnd = 0
         number.font = .monospacedDigitSystemFont(ofSize: 20, weight: .semibold)
         number.alignment = .center
+        number.setAccessibilityElement(false)
         number.frame = NSRect(x: 0, y: 12, width: 48, height: 24)
         addSubview(number)
         setAccessibilityElement(false)  // the panel announces phases in words
@@ -152,6 +153,8 @@ final class ProgressRing: NSView {
     }
 
     func set(_ new: Phase) {
+        CATransaction.begin(); CATransaction.setDisableActions(true)  // only the explicit animations below may move
+        defer { CATransaction.commit() }
         phase = new
         let reduced = Tokens.Motion.reduced
         spinner.isHidden = new != .starting
@@ -208,6 +211,7 @@ final class PanelButton: NSButton {
         let w = max(80, ceil(attributedTitle.size().width) + 28)
         setFrameSize(NSSize(width: w, height: 32))
         setAccessibilityLabel(title)
+        restyle(animated: false)  // the title didSet ran before the layer existed
     }
     required init?(coder: NSCoder) { fatalError() }
 
@@ -224,7 +228,24 @@ final class PanelButton: NSButton {
     }
 
     private func restyle(animated: Bool) {
-        let ink = Tokens.ink, bgc = Tokens.bg
+        var fill = NSColor.clear, border = NSColor.clear, text = NSColor.clear
+        effectiveAppearance.performAsCurrentDrawingAppearance { [self] in (fill, border, text) = colors() }
+        attributedTitle = NSAttributedString(string: title, attributes: [
+            .font: NSFont.systemFont(ofSize: 13, weight: .medium), .foregroundColor: text,
+            .paragraphStyle: { let p = NSMutableParagraphStyle(); p.alignment = .center; return p }()])
+        guard let l = layer else { return }
+        focus.strokeColor = cg(Tokens.accent, in: self)
+        if animated {
+            animate(l, "backgroundColor", to: fill.cgColor, duration: Tokens.Motion.hover)
+            animate(l, "borderColor", to: border.cgColor, duration: Tokens.Motion.hover)
+        } else {
+            l.backgroundColor = fill.cgColor; l.borderColor = border.cgColor
+        }
+    }
+
+    /// Role × hover → (fill, border, text). Call inside the view's drawing appearance (blends resolve there).
+    private func colors() -> (NSColor, NSColor, NSColor) {
+        let ink = Tokens.ink.usingColorSpace(.sRGB)!, bgc = Tokens.bg.usingColorSpace(.sRGB)!
         let fill: NSColor, border: NSColor, text: NSColor
         switch role {
         case .primary:
@@ -232,20 +253,11 @@ final class PanelButton: NSButton {
             border = fill; text = bgc
         case .secondary:
             fill = hovering ? ink.withAlphaComponent(0.06) : .clear
-            border = hovering ? Tokens.line.blended(withFraction: 0.22, of: ink) ?? Tokens.line : Tokens.line
+            let line = Tokens.line.usingColorSpace(.sRGB)!
+            border = hovering ? line.blended(withFraction: 0.22, of: ink) ?? line : line
             text = ink
         }
-        attributedTitle = NSAttributedString(string: title, attributes: [
-            .font: NSFont.systemFont(ofSize: 13, weight: .medium), .foregroundColor: text,
-            .paragraphStyle: { let p = NSMutableParagraphStyle(); p.alignment = .center; return p }()])
-        guard let l = layer else { return }
-        focus.strokeColor = cg(Tokens.accent, in: self)
-        if animated {
-            animate(l, "backgroundColor", to: cg(fill, in: self), duration: Tokens.Motion.hover)
-            animate(l, "borderColor", to: cg(border, in: self), duration: Tokens.Motion.hover)
-        } else {
-            l.backgroundColor = cg(fill, in: self); l.borderColor = cg(border, in: self)
-        }
+        return (fill, border, text)
     }
 
     override func updateTrackingAreas() {
@@ -273,7 +285,10 @@ final class PanelButton: NSButton {
     private func superClick(_ sender: Any?) { super.performClick(sender) }
 
     override var acceptsFirstResponder: Bool { true }
-    override func becomeFirstResponder() -> Bool { focus.isHidden = false; return super.becomeFirstResponder() }
+    override func becomeFirstResponder() -> Bool {
+        focus.isHidden = NSApp.currentEvent?.type != .keyDown  // focus = seen: only when the keyboard put it here
+        return super.becomeFirstResponder()
+    }
     override func resignFirstResponder() -> Bool { focus.isHidden = true; return super.resignFirstResponder() }
 }
 
@@ -295,6 +310,7 @@ final class EnrollPanel: NSPanel {
                    backing: .buffered, defer: false)
         isFloatingPanel = true; level = .statusBar; hidesOnDeactivate = false
         backgroundColor = .clear; isOpaque = false; hasShadow = true
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]  // show on the Space the user is on
         isReleasedWhenClosed = false
         setAccessibilityTitle("Set up face")
         let v = SurfaceView(frame: NSRect(x: 0, y: 0, width: 320, height: 160))
@@ -307,7 +323,10 @@ final class EnrollPanel: NSPanel {
     }
 
     override var canBecomeKey: Bool { true }  // Esc and VoiceOver; nonactivating, so the user's app keeps focus
-    override func cancelOperation(_ sender: Any?) { onCancel() }
+    /// Esc presses the visible Cancel/Done button, so it gets the same press feedback.
+    override func cancelOperation(_ sender: Any?) {
+        if let b = buttons.first(where: { $0.title == "Cancel" || $0.title == "Done" }) { b.performClick(nil) } else { onCancel() }
+    }
 
     func present(below button: NSStatusBarButton) {
         guard let bw = button.window, let screen = bw.screen ?? NSScreen.main else { return }
@@ -317,7 +336,7 @@ final class EnrollPanel: NSPanel {
         setFrameOrigin(NSPoint(x: x, y: icon.minY - 8 - 160))
         origin = CGPoint(x: icon.midX - x, y: 160 + 8)  // the icon's bottom centre, just above the panel
         let l = contentView!.layer!
-        if isVisible { makeKey(); return }
+        if isVisible, alphaValue == 1 { makeKey(); return }
         alphaValue = 0
         l.transform = Tokens.Motion.reduced ? CATransform3DIdentity : scale(Tokens.Motion.enterScale, about: origin)
         orderFrontRegardless(); makeKey()
@@ -326,6 +345,7 @@ final class EnrollPanel: NSPanel {
             animator().alphaValue = 1
         }
         animate(l, "transform", to: CATransform3DIdentity, duration: Tokens.Motion.enter)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.enter) { [weak self] in self?.invalidateShadow() }
     }
 
     /// Shrink back into the icon, then order out.
@@ -336,40 +356,38 @@ final class EnrollPanel: NSPanel {
         NSAnimationContext.runAnimationGroup({ c in
             c.duration = Tokens.Motion.exit; c.timingFunction = Tokens.Motion.easeOut
             animator().alphaValue = 0
-        }, completionHandler: { [weak self] in self?.orderOut(nil) })
+        }, completionHandler: { [weak self] in if self?.alphaValue == 0 { self?.orderOut(nil) } })
     }
 
     func show(_ p: Phase) {
         autoClose?.cancel()
-        let (ringPhase, title, text, btns): (ProgressRing.Phase, String, String, [PanelButton]) = {
-            let cancel = PanelButton("Cancel", role: .secondary) { [weak self] in self?.onCancel() }
-            let retry = PanelButton("Try again", role: .primary) { [weak self] in self?.onRetry() }
-            switch p {
-            case .starting: return (.starting, "Starting camera…", "", [cancel])
-            case .counting(let r): return (.counting(remaining: r), "Look at the screen",
-                                           "Be the only person in view. Nothing is saved except a face print.", [cancel])
-            case .saved: return (.done, "Face saved", "Stored on this Mac only. Delete it any time from the menu.",
-                                 [PanelButton("Done", role: .primary) { [weak self] in self?.onCancel() }])
-            case .noFace: return (.failed, "No face seen", "Face the screen in good light, then try again.", [cancel, retry])
-            case .severalFaces: return (.failed, "More than one face", "Only you should be in view. Try again when you're alone.", [cancel, retry])
-            case .cameraDenied: return (.failed, "Camera access is off", "Allow byaku in System Settings, then try again.",
-                                        [cancel, PanelButton("Open camera settings…", role: .primary) { [weak self] in self?.onOpenSettings() }])
-            case .failed(let why): return (.failed, "Couldn't set up face", why, [cancel, retry])
-            }
-        }()
+        let cancel = ("Cancel", PanelButton.Role.secondary, onCancel), retry = ("Try again", PanelButton.Role.primary, onRetry)
+        let (ringPhase, title, text, specs): (ProgressRing.Phase, String, String, [(String, PanelButton.Role, () -> Void)]) = switch p {
+        case .starting: (.starting, "Starting camera…", "", [cancel])
+        case .counting(let r): (.counting(remaining: r), "Look at the screen",
+                                "Be the only person in view. Nothing is saved except a face print.", [cancel])
+        case .saved: (.done, "Face saved", "Stored on this Mac only. Delete it any time from the menu.", [("Done", .primary, onCancel)])
+        case .noFace: (.failed, "No face seen", "Face the screen in good light, then try again.", [cancel, retry])
+        case .severalFaces: (.failed, "More than one face", "Only you should be in view. Try again when you're alone.", [cancel, retry])
+        case .cameraDenied: (.failed, "Camera access is off", "Allow byaku in System Settings, then try again.",
+                             [cancel, ("Open camera settings…", .primary, onOpenSettings)])
+        case .failed(let why): (.failed, "Couldn't set up face", why, [cancel, retry])
+        }
         ring.set(ringPhase)
         titleLabel.textColor = Tokens.ink; body.textColor = Tokens.mute
         titleLabel.stringValue = title; body.stringValue = text
-        if buttons.map(\.title) != btns.map(\.title) {  // keep the same buttons across countdown ticks (hover state)
+        // A lone title sits on the ring's centre line; with a body, the pair fills the 56 pt row.
+        titleLabel.setFrameOrigin(NSPoint(x: 88, y: text.isEmpty ? 98 : 116))
+        if buttons.map(\.title) != specs.map(\.0) {  // same buttons across countdown ticks (keeps hover state)
             buttons.forEach { $0.removeFromSuperview() }
-            buttons = btns
+            buttons = specs.map { t, role, act in PanelButton(t, role: role) { act() } }
             var x: CGFloat = 296
-            for b in btns.reversed() { x -= b.frame.width; b.setFrameOrigin(NSPoint(x: x, y: 24)); x -= 8; contentView!.addSubview(b) }
-            if let primary = btns.last(where: { $0.role == .primary }) { primary.keyEquivalent = "\r"; makeFirstResponder(primary) }
+            for b in buttons.reversed() { x -= b.frame.width; b.setFrameOrigin(NSPoint(x: x, y: 24)); x -= 8; contentView!.addSubview(b) }
+            buttons.last { $0.role == .primary }?.keyEquivalent = "\r"  // Return; focus ring stays off until the keyboard moves focus
         }
         let announcement: String? = switch p {
         case .starting: nil
-        case .counting(let r): r == 5 ? "\(title). 5" : "\(r)"
+        case .counting(let r): r == 5 ? "\(title). \(text) 5" : "\(r)"
         default: "\(title). \(text)"
         }
         if let announcement {
