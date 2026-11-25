@@ -1,7 +1,9 @@
 # Backlog
 
 ## Next (pick one per PR)
-- [ ] Menu-bar app skeleton (impeccable) + in-app enrollment
+- [ ] Guard actions: banner + dim (spec + mockups first) with debounce N-of-M; per-face embedding so "2 faces = alert" becomes "a non-owner looks"
+- [ ] `.app` bundle (Info.plist, NSCameraUsageDescription, LSUIElement, model in Resources, menu-bar PDF + .icns); split a library target then
+- [ ] Verify the violet icon on a light menu bar (picks from the drawing appearance; spec wants `button.effectiveAppearance`)
 - [ ] Optional: `scripts/power.sh 3 120 "1" "--embed ml/models/sface.mlpackage"` battery row (rails already show ~+20–25 mW)
 
 - [ ] Yawed-face owner match in Swift (margin +0.228 vs Python +0.633; −30° worst). Try: landmarks on a tighter or upright crop, a different
@@ -11,6 +13,12 @@
 - [x] Round 1 exploration (6 symbols × 3 weights, 5 faces, 4 violets) → E2 + Rondel 500 + iris/dusk
 - [x] Final SVG set, palette.md (computed contrast), app icon, menu-bar template, philosophy.md
 - [ ] Export the app icon to `.icns` and the menu-bar template to PDF when the app target exists
+
+## Done: PR5 menu-bar app (2026-11-25)
+- [x] Spec + mockups (approved), `byaku app`: icon states, menu, face setup panel, Guard on/off, delete
+- [x] Typed components + Tokens.swift + `scripts/check-ui.sh` in CI; 2 review agents, 21 fixes
+- [x] Live: owner setup, photo → alert, dark-mode panel
+- [ ] Leftovers (low): panel shadow during scale-in; button-row overflow under localisation; enrollment threshold (10 frames) to tune
 
 ## Done: PR3 Swift alignment (2026-11-25)
 - [x] Similarity solve + bilinear warp; warp parity 1.00000 vs alignCrop (`byaku align`)
