@@ -29,32 +29,34 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 
     init(fps: Double) { self.fps = fps }
 
-    func start() {
+    struct Failure: Error, CustomStringConvertible { let description: String }
+
+    func start() throws {
         if AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
             let sem = DispatchSemaphore(value: 0)
             AVCaptureDevice.requestAccess(for: .video) { _ in sem.signal() }
             sem.wait()
         }
         guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else {
-            fail("camera access denied for the host app (\(hostApp())). Allow it in System Settings → Privacy & Security → Camera.", code: 77)
+            throw Failure(description: "camera access denied for the host app (\(hostApp())). Allow it in System Settings → Privacy & Security → Camera.")
         }
         // .builtInWideAngleCamera excludes Continuity (iPhone) and external webcams.
         guard let device = AVCaptureDevice.DiscoverySession(
             deviceTypes: [.builtInWideAngleCamera], mediaType: .video, position: .unspecified
-        ).devices.first else { fail("no built-in camera found", code: 69) }
+        ).devices.first else { throw Failure(description: "no built-in camera found") }
 
         // Smallest format ≥ 640 px wide; prefer one whose min rate reaches the requested fps.
         let formats = device.formats.filter { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 640 }
         func width(_ f: AVCaptureDevice.Format) -> Int32 { CMVideoFormatDescriptionGetDimensions(f.formatDescription).width }
         func minRate(_ f: AVCaptureDevice.Format) -> Double { f.videoSupportedFrameRateRanges.map(\.minFrameRate).min() ?? 30 }
         guard let format = formats.min(by: { (minRate($0), width($0)) < (minRate($1), width($1)) }) else {
-            fail("no usable camera format", code: 69)
+            throw Failure(description: "no usable camera format")
         }
         let d = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
         print("camera: \(device.localizedName) \(d.width)x\(d.height) ranges=\(format.videoSupportedFrameRateRanges.map { "\($0.minFrameRate)-\($0.maxFrameRate)" }) host=\(hostApp())")
 
         guard let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) else {
-            fail("cannot open camera input", code: 69)
+            throw Failure(description: "cannot open camera input")
         }
         session.addInput(input)
         let output = AVCaptureVideoDataOutput()
@@ -77,8 +79,11 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             device.activeVideoMinFrameDuration = dur
             device.activeVideoMaxFrameDuration = dur
             device.unlockForConfiguration()
-        } catch { fail("cannot configure camera: \(error)", code: 69) }
+        } catch { session.stopRunning(); throw Failure(description: "cannot configure camera: \(error)") }
     }
+
+    /// Stops the sensor (LED off). A Camera is single-use: make a new one to start again.
+    func stop() { session.stopRunning() }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sb: CMSampleBuffer, from connection: AVCaptureConnection) {
         framesDelivered += 1
@@ -108,7 +113,7 @@ func hostApp() -> String {
 }
 
 /// Compiles an .mlpackage at runtime (no Xcode / coremlcompiler) and wraps it as a Vision request.
-func loadEmbedder(_ path: String, units: MLComputeUnits) -> (request: VNCoreMLRequest, compiled: URL, model: MLModel) {
+func loadEmbedder(_ path: String, units: MLComputeUnits) throws -> (request: VNCoreMLRequest, compiled: URL, model: MLModel) {
     do {
         let compiled = try MLModel.compileModel(at: URL(fileURLWithPath: path))
         let cfg = MLModelConfiguration()
@@ -117,7 +122,7 @@ func loadEmbedder(_ path: String, units: MLComputeUnits) -> (request: VNCoreMLRe
         let req = VNCoreMLRequest(model: try VNCoreMLModel(for: model))
         req.imageCropAndScaleOption = .scaleFill
         return (req, compiled, model)
-    } catch { fail("cannot load model \(path): \(error)", code: 66) }
+    } catch { throw Camera.Failure(description: "cannot load model \(path): \(error)") }
 }
 
 func embedding(_ req: VNCoreMLRequest) -> [Float]? {

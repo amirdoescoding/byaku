@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Testing
 @testable import Byaku
 
@@ -24,4 +25,26 @@ func parseFPSRejectsGarbage(input: String) {
     let src = [CGPoint(x: 10, y: 20), CGPoint(x: 80, y: 22), CGPoint(x: 45, y: 60), CGPoint(x: 15, y: 90), CGPoint(x: 75, y: 91)]
     let m = similarity(src: src, dst: src.map { $0.applying(t) })
     for (a, b) in [(m.a, t.a), (m.b, t.b), (m.c, t.c), (m.d, t.d), (m.tx, t.tx), (m.ty, t.ty)] { #expect(abs(a - b) < 1e-9) }
+}
+
+@Test(arguments: [(0, nil, GuardState.guarding), (1, Float(0.9), .guarding), (1, Float(0.1), .alert), (1, nil, .guarding),
+                  (2, Float(0.9), .alert), (3, nil, .alert)] as [(Int, Float?, GuardState)])
+func verdictRules(faces: Int, score: Float?, expected: GuardState) {
+    #expect(verdict(faces: faces, score: score) == expected)
+}
+
+@Test func ownerTemplateIsUnitMean() {
+    let t = ownerTemplate([[1, 0], [0, 1]])!
+    #expect(abs(t[0] - t[1]) < 1e-6 && abs(t[0] * t[0] + t[1] * t[1] - 1) < 1e-6)
+    #expect(ownerTemplate([]) == nil)
+}
+
+@Test func ownerStoreRoundTripAndDelete() throws {
+    let s = OwnerStore(url: FileManager.default.temporaryDirectory.appendingPathComponent("byaku-test-\(UUID())/owner.json"))
+    #expect(s.load() == nil)
+    try s.save([0.5, -0.25])
+    #expect(s.load() == [0.5, -0.25])
+    try s.delete()
+    #expect(s.load() == nil)
+    try s.delete()  // deleting twice is fine
 }
