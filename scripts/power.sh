@@ -1,9 +1,12 @@
 #!/bin/sh
 # Whole-system power for `byaku detect` vs idle, from the battery (includes camera/ISP).
 # Run UNPLUGGED, fixed brightness, nothing else open. Do NOT run powermetrics at the same time.
-# Usage: scripts/power.sh [runs=3] [seconds=120] [fps list="1 2 5"]
+# Usage: scripts/power.sh [runs=3] [seconds=120] [fps list="1 2 5"] [extra detect args]
+#   With extra args (e.g. "--embed ml/models/sface.mlpackage"), each fps also gets an interleaved "<fps>e" setting
+#   that runs detect with them, so the delta is measured in the same session.
 set -eu
-RUNS=${1:-3}; SECS=${2:-120}; FPS_LIST=${3:-"1 2 5"}
+RUNS=${1:-3}; SECS=${2:-120}; FPS_LIST=${3:-"1 2 5"}; EXTRA=${4:-}
+SETTINGS=$(for f in $FPS_LIST; do printf '%s ' "$f"; [ -n "$EXTRA" ] && printf '%se ' "$f"; done)
 BIN=.build/release/byaku
 swift build -c release >/dev/null
 OUT=$(mktemp -d)
@@ -18,10 +21,12 @@ watts() {  # mean system draw in W over $1 seconds (InstantAmperage < 0 when dis
 
 ioreg -rn AppleSmartBattery | grep -q '"ExternalConnected" = No' || { echo "unplug the charger first" >&2; exit 1; }
 for r in $(seq 1 "$RUNS"); do
-  for setting in idle $FPS_LIST; do
+  for setting in idle $SETTINGS; do
     if [ "$setting" = idle ]; then w=$(watts "$SECS"); fps_line="-"
     else
-      "$BIN" detect --fps "$setting" >"$OUT/log" 2>&1 & pid=$!
+      case $setting in *e) args="--fps ${setting%e} $EXTRA";; *) args="--fps $setting";; esac
+      # shellcheck disable=SC2086
+      "$BIN" detect $args >"$OUT/log" 2>&1 & pid=$!
       sleep 5  # camera warm-up, excluded
       w=$(watts "$SECS"); kill "$pid"; wait "$pid" 2>/dev/null || true
       fps_line=$(awk -F'[= ]' '/delivered_fps/{d+=$2;p+=$4;n++} END{if(n)printf "sensor=%.1f processed=%.1f", d/n, p/n}' "$OUT/log")

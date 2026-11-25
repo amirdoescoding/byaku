@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreML
 import Vision
 
 func fail(_ msg: String, code: Int32) -> Never {
@@ -14,6 +15,8 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     var onFaces: ([VNFaceObservation]) -> Void = { _ in }
     private(set) var framesDelivered = 0   // sensor frames, read on `queue`
     private(set) var framesProcessed = 0   // frames Vision ran on
+    var embed: VNCoreMLRequest? = nil      // set by `detect --embed`: SFace on the largest face
+    private(set) var embedsRun = 0
     private var dropTo: Double? = nil      // software throttle when the sensor can't go this slow
     private var lastProcessed = Date.distantPast
     private let handler = VNSequenceRequestHandler()
@@ -82,7 +85,14 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         guard let pb = CMSampleBufferGetImageBuffer(sb) else { return }
         framesProcessed += 1
         try? handler.perform([request], on: pb)
-        onFaces(request.results ?? [])
+        let faces = request.results ?? []
+        // ponytail: unaligned bbox crop, for power measurement only; Swift 5-point alignment is TODO 1.
+        if let embed, let face = faces.max(by: { $0.boundingBox.width < $1.boundingBox.width }) {
+            embed.regionOfInterest = face.boundingBox
+            try? handler.perform([embed], on: pb)
+            embedsRun += 1
+        }
+        onFaces(faces)
     }
 }
 
@@ -90,4 +100,22 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 func hostApp() -> String {
     ProcessInfo.processInfo.environment["__CFBundleIdentifier"]
         ?? ProcessInfo.processInfo.environment["TERM_PROGRAM"] ?? "unknown"
+}
+
+/// Compiles an .mlpackage at runtime (no Xcode / coremlcompiler) and wraps it as a Vision request.
+func loadEmbedder(_ path: String, units: MLComputeUnits) -> (request: VNCoreMLRequest, compiled: URL, model: MLModel) {
+    do {
+        let compiled = try MLModel.compileModel(at: URL(fileURLWithPath: path))
+        let cfg = MLModelConfiguration()
+        cfg.computeUnits = units
+        let model = try MLModel(contentsOf: compiled, configuration: cfg)
+        let req = VNCoreMLRequest(model: try VNCoreMLModel(for: model))
+        req.imageCropAndScaleOption = .scaleFill
+        return (req, compiled, model)
+    } catch { fail("cannot load model \(path): \(error)", code: 66) }
+}
+
+func embedding(_ req: VNCoreMLRequest) -> [Float]? {
+    guard let a = (req.results?.first as? VNCoreMLFeatureValueObservation)?.featureValue.multiArrayValue else { return nil }
+    return (0..<a.count).map { a[$0].floatValue }
 }
