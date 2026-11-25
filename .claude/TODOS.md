@@ -1,9 +1,15 @@
 # Backlog
 
-## Next: PR2 `feat/v0-owner-match` (plan: `docs/designs/v0-spike.md` steps 6–8)
-- [ ] `ml/` uv project + `sface_live.py` (OpenCV FaceRecognizerSF, enroll then score in one run), pre-registered pass bar
-- [ ] `convert_sface.py` → CoreML with parity assert (cosine > 0.99 vs onnxruntime, public sample faces)
-- [ ] `byaku embed`: runtime compile, ANE placement (MLComputePlan), power with `scripts/power.sh`
+## Next (pick one per PR)
+- [ ] Swift 5-point alignment (Vision landmarks → SFace template), checked against OpenCV alignCrop (cosine > 0.98); then re-run the live owner match in Swift
+- [ ] Menu-bar app skeleton (impeccable) + in-app enrollment
+- [ ] Optional: `scripts/power.sh 3 120 "1" "--embed ml/models/sface.mlpackage"` battery row (rails already show ~+20–25 mW)
+
+## Done: PR2 owner match (2026-11-25)
+- [x] `ml/` uv project; `sface_live.py` with bar v2 PASS (margin +0.633, threshold 0.437)
+- [x] `convert_sface.py`: onnx2torch route, three-way parity 1.0000
+- [x] `byaku embed` + `detect --embed`: Swift parity, placement, latency; CPU+ANE instead of `.all` (GPU +0.1 W)
+- [x] Vision feature-print baseline: dropped (SFace passes; a fair test needs a Swift live loop)
 
 ## Done: v0 spike PR1 (2026-11-25)
 - [x] SwiftPM skeleton; build + swift-testing work with Command Line Tools only
@@ -29,7 +35,6 @@
 - [ ] CI is live once this PR lands (build + test on macos-15); verify the first run
 
 ## ML (`ml/`)
-- [ ] uv project; settle the ONNX → CoreML conversion route
 - [ ] Gaze dataset + trained looking/not-looking classifier
 
 ## Ideas (later)

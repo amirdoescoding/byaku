@@ -1,6 +1,6 @@
 # Architecture
 
-Status: **v0 spike CLI exists** (`Sources/Byaku`: `detect`, `lock-test`). The app pipeline below is still planned.
+Status: **v0 spike CLI exists** (`Sources/Byaku`: `detect [--embed]`, `embed`, `lock-test`; `ml/`: SFace conversion + live eval). The app pipeline below is still planned.
 
 ## Pipeline
 
@@ -83,6 +83,10 @@ Most of the savings come from the pipeline, not the language.
 | 2026-11-25 | Camera keeps delivering frames while the screen is locked | Spike: 300 frames in 10 s while locked, so Away can keep watching after it locks |
 | 2026-11-25 | M1 FaceTime HD has only fixed 30 fps formats (640×480, 1280×720) | "Low fps" is a software throttle; the sensor stays at 30 fps |
 | 2026-11-25 | Camera + Vision at 1–2 fps costs ~0.3–0.4 W whole-system on M1, well under the 1.5 W budget; duty-cycling not needed yet | See power table below |
+| 2026-11-25 | Owner matcher = SFace 2021dec, provisional cosine threshold 0.437 | Live bar v2 PASS (margin +0.633), see "Owner match" below |
+| 2026-11-25 | Conversion route: ONNX → onnx2torch → `torch.jit.trace` → coremltools 9.0 mlprogram, ImageType RGB raw 0–255, torch pinned 2.7.0 | Three-way parity cv2/ORT/CoreML cosine 1.0000 on 8 public faces; Swift matches too. The model normalises inside ((x−127.5)/128) |
+| 2026-11-25 | Run SFace with `.cpuAndNeuralEngine`, not `.all` | `.all` puts the head (BN + 50176→128 linear) on the GPU: +100–130 mW while a face is visible. CPU+ANE: GPU flat, 1.25 ms/embed |
+| 2026-11-25 | Vision feature-print baseline dropped | It was expected to lose, and a fair test needs a Swift live loop; SFace already passes |
 
 ## Power measurements
 
@@ -99,10 +103,36 @@ The idle sample in run 1 (8.16 W) looks like warm-up from the release build that
 
 Takeaway: camera + Vision costs roughly 0.3–0.4 W at 1–2 fps and roughly 1 W at 5 fps. Noise is about ±0.5 W. All settings fit the 1.5 W budget, so keep a ~1–2 fps baseline and burst to 5 fps only briefly.
 
-## Open risks
+## Owner match (SFace, `ml/sface_live.py`)
 
-- **Model conversion route.** coremltools no longer ships an ONNX frontend. The likely route is ONNX → onnx2torch → coremltools.
-  Settle it in the `ml/` spike.
+M1 FaceTime HD 640×480, OpenCV YuNet + alignCrop, 2026-11-25. Bar v1 (min owner > max stranger) first FAILED at −0.775:
+stranger photos were held on a phone with the owner in frame, so the owner was scored as "stranger". Bar v2 was
+pre-registered and committed (823003f) before the re-run: p5 of every owner segment > p95 of all strangers.
+
+| Segment | n | p5 | p50 |
+|---|---|---|---|
+| owner, light A, yaw 0 / +30 / −30 | 93 / 41 / 56 | 0.941 / 0.919 / 0.939 | 0.956 / 0.934 / 0.945 |
+| owner, light B, yaw 0 / +30 / −30 | 52 / 45 / 48 | 0.824 / 0.779 / 0.790 | 0.845 / 0.818 / 0.820 |
+| owner, glasses on / off | 47 / 44 | 0.747 / 0.838 | 0.762 / 0.850 |
+| stranger 1 / 2 (photos) | 59 / 73 | p95 0.125 / 0.032 | 0.084 / 0.002 |
+| owner photo (report only) | 55 | 0.715 | 0.738 |
+
+Result: v2 **PASS**, margin +0.633, threshold 0.437, FRR 0% / FAR 0% at that threshold (v1 on this data: PASS, +0.559).
+The owner photo matches (0.74), which confirms "owner suppresses, never disarms". Caveats: one owner, two strangers
+(photos), frames counted only with exactly one face; the live Swift path uses an unaligned crop until Swift alignment lands.
+
+## Embed cost (powermetrics rails, `detect --fps 1` vs `--embed`, face in view, 60 × 1 s, medians)
+
+| Rail | detect | + embed (CPU+ANE) | + embed (`.all`, before fix) |
+|---|---|---|---|
+| GPU | ~16 mW | ~16 mW | 100–165 mW while a face is visible |
+| ANE | ~15 mW | ~17 mW | ~17 mW |
+| CPU | ~70 mW | ~90 mW (noisy) | – |
+
+Placement (`MLComputePlan`, CPU+ANE): 58 ops on the ANE and 4 on the CPU (the linear head). Latency: 1.25 ms (CPU+ANE),
+1.5 ms (`.all`), 3.1 ms (CPU only). Embedding at 1 Hz costs ~+20–25 mW, which is below battery-measurement noise.
+
+## Open risks
 - **Camera permission (TCC)** needs a `.app` bundle with `NSCameraUsageDescription`. Only Command Line Tools are
   installed, not Xcode. SwiftPM builds work, but bundling and signing may need Xcode or a bundling script.
 - **Gaze accuracy.** Yaw/pitch thresholds alone will false-positive on people looking near the screen. EyesOff

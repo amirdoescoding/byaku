@@ -1,0 +1,18 @@
+[project]
+name = "byaku-ml"
+version = "0.0.0"
+description = "Dev tooling for byaku: model eval and conversion. Never shipped."
+requires-python = "==3.12.*"
+dependencies = [
+    "opencv-python",
+    "onnx",
+    "onnxruntime",
+    "onnx2torch",
+    "torch==2.7.0",  # the newest torch coremltools 9.0 is tested with
+    "coremltools",
+    "pillow",
+    "numpy",
+]
+
+[tool.uv]
+package = false
