@@ -26,7 +26,7 @@ macOS first. Other platforms are not planned yet, so don't add cross-platform ab
 
 ## Commands
 
-Verified on an M1 with Command Line Tools only (no Xcode). `swift test` runs swift-testing. `ml/` doesn't exist yet.
+Verified on an M1 with Command Line Tools only (no Xcode). `swift test` runs swift-testing.
 
 ```sh
 swift build                           # build the spike CLI
@@ -34,6 +34,10 @@ swift test                            # swift-testing unit tests
 .build/debug/byaku detect --fps 2     # built-in camera → face count, yaw, pitch; prints delivered/processed fps
 .build/debug/byaku lock-test          # LOCKS THE SCREEN; verifies the lock and camera-while-locked
 scripts/power.sh                      # unplugged: whole-system W vs idle, 3×120 s alternating
+.build/debug/byaku detect --fps 1 --embed ml/models/sface.mlpackage   # + SFace on the largest face (power runs only)
+.build/debug/byaku embed ml/models/sface.mlpackage ml/models/parity  # Swift parity vs Python, ANE placement, latency
+(cd ml && uv run convert_sface.py)    # fetch models, SFace ONNX → CoreML, three-way parity assert (cv2/ORT/CoreML)
+(cd ml && uv run sface_live.py)       # live owner vs stranger scoring, pre-registered pass bar (camera)
 graphify query "<question>"           # ask the knowledge graph (see below)
 ```
 
