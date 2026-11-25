@@ -105,7 +105,7 @@ final class WatchOverlay {
     }
 }
 
-/// Dim layer + the Iris edge: an accent band just outside the screen whose blurred shadow bleeds inward.
+/// Dim layer + the Iris mist: the blurred shadow of an invisible band at the screen's edge. No hard border is drawn.
 /// Static once in, so a held alert is a composited layer and costs ~0 GPU.
 private final class OverlayView: NSView {
     private let dim = CALayer(), edgeBox = CALayer(), band = CAShapeLayer()
@@ -115,8 +115,8 @@ private final class OverlayView: NSView {
         wantsLayer = true
         setAccessibilityElement(false)
         dim.backgroundColor = NSColor.black.withAlphaComponent(Tokens.Overlay.dimAlpha).cgColor
-        edgeBox.masksToBounds = true  // clip the band; only its shadow shows
-        band.fillRule = .evenOdd
+        edgeBox.masksToBounds = true  // clip the shadow that falls outside the screen
+        band.fillColor = nil  // the band only casts the mist; filled, it read as a solid violet frame over the edges
         band.shadowOffset = .zero; band.shadowRadius = Tokens.Overlay.edgeBlur; band.shadowOpacity = 1
         edgeBox.addSublayer(band)
         CATransaction.begin(); CATransaction.setDisableActions(true)
@@ -139,7 +139,7 @@ private final class OverlayView: NSView {
 
     private func recolor() {
         let a = cg(Tokens.accent, in: self)
-        band.fillColor = a; band.shadowColor = a
+        band.shadowColor = a
     }
 
     func set(_ m: Mode?, animated: Bool) {
@@ -177,7 +177,7 @@ private final class OverlayView: NSView {
     }
 
     /// A frame from well outside the screen to `inset` inside it. The inner rect winds the other way, so the
-    /// shadow path (non-zero rule) has the same hole as the even-odd fill.
+    /// shadow path (non-zero rule) leaves the screen open and only the edge casts.
     private func bandPath(_ inset: CGFloat) -> CGPath {
         let p = CGMutablePath()
         p.addRect(bounds.insetBy(dx: -2 * Tokens.Overlay.edgeBlur, dy: -2 * Tokens.Overlay.edgeBlur))
