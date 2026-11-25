@@ -1,9 +1,17 @@
 # Backlog
 
 ## Next (pick one per PR)
-- [ ] Swift 5-point alignment (Vision landmarks → SFace template), checked against OpenCV alignCrop (cosine > 0.98); then re-run the live owner match in Swift
 - [ ] Menu-bar app skeleton (impeccable) + in-app enrollment
 - [ ] Optional: `scripts/power.sh 3 120 "1" "--embed ml/models/sface.mlpackage"` battery row (rails already show ~+20–25 mW)
+
+- [ ] Yawed-face owner match in Swift (margin +0.228 vs Python +0.633; −30° worst). Try: landmarks on a tighter or upright crop, a different
+      eye/nose mapping judged by pixel error on real yawed faces, or multi-pose enrollment. Pre-register before re-running.
+
+## Done: PR3 Swift alignment (2026-11-25)
+- [x] Similarity solve + bilinear warp; warp parity 1.00000 vs alignCrop (`byaku align`)
+- [x] Vision landmarks → 5 points on the live path (32BGRA); landmark parity reported (FAIL 0.98, weak proxy)
+- [x] `byaku match` + `ml/score_segments.py`: Swift live bar v2 PASS (+0.228, threshold 0.300)
+- [x] Rails: GPU 8 / ANE 17 / CPU 100 mW, ≲ +10 mW vs unaligned
 
 ## Done: PR2 owner match (2026-11-25)
 - [x] `ml/` uv project; `sface_live.py` with bar v2 PASS (margin +0.633, threshold 0.437)
@@ -18,8 +26,7 @@
 - [x] Lock: SACLockScreenImmediate verified on macOS 15.6; camera runs while locked
 
 ## Pipeline
-- [ ] Owner enrollment + embedding match (SFace → CoreML)
-- [ ] Swift 5-point face alignment (Vision landmarks → SFace template), checked against OpenCV alignCrop (cosine > 0.98)
+- [ ] Owner enrollment + embedding match in the app (Swift path works in `byaku match`); embed every face, not just the largest
 - [ ] Gaze v0: yaw/pitch thresholds
 - [ ] Policy: debounce N-of-M, cooldown, adaptive fps
 
