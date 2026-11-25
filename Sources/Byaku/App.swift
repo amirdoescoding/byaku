@@ -35,6 +35,7 @@ final class AppController: NSObject, NSMenuDelegate {
         catch { modelError = "face model missing" }
         let menu = NSMenu()
         menu.delegate = self
+        menu.autoenablesItems = false  // our isEnabled (Guard and Delete need a face) must win
         item.menu = menu
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(screenLocked),
                                                             name: .init("com.apple.screenIsLocked"), object: nil)
