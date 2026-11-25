@@ -153,6 +153,15 @@ private final class OverlayView: NSView {
         fade(edgeBox, to: edgesOn ? Tokens.Overlay.edgeAlpha : 0, enter: Tokens.Motion.edgeIn)
         guard edgesOn, !wasOn else { return }
         // The edge spreads inward from the screen's border (§6); Reduce Motion: fade only.
+        // Live, the 90 pt shadow re-blurs on every recomposite (measured +13 mW held, >100 mW while scrolling), so once
+        // the spread lands it is cached as a bitmap; each redraw then only blends a texture.
+        edgeBox.shouldRasterize = false
+        let settle = animated && !Tokens.Motion.reduced ? Tokens.Motion.edgeIn : 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + settle) { [weak self] in
+            guard let self, self.edgeBox.opacity > 0 else { return }
+            self.edgeBox.rasterizationScale = self.window?.backingScaleFactor ?? 2
+            self.edgeBox.shouldRasterize = true
+        }
         let to = bandPath(Tokens.Overlay.edgeSpread)
         if animated, !Tokens.Motion.reduced {
             CATransaction.begin(); CATransaction.setDisableActions(true)
