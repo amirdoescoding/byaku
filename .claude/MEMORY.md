@@ -11,4 +11,6 @@
 - Away v1: manual arm. The owner's face suppresses triggers but never disarms (photo spoof). Disarm is a click.
 - 2026-11-25 PR2: SFace passes owner-vs-stranger (bar v2, margin +0.633, threshold 0.437). It converts to CoreML (onnx2torch route) with exact parity. Run it with `.cpuAndNeuralEngine`, because `.all` wakes the GPU (+0.1 W). Embed cost is ~20–25 mW at 1 Hz.
 - Pre-register pass bars in a commit before collecting data. Live labelling is error-prone: the owner holding a phone photo gets scored as the "stranger".
+- 2026-11-25 PR3: Swift alignment matches `alignCrop` exactly (own bilinear warp; vImage = Lanczos + bottom-left origin). Swift live bar v2 PASS but margin +0.228 (threshold 0.300): turned heads (yaw −30) are the weak point, from Vision landmarks. Vision face confidence is ~0.83 for a clear face, which is not YuNet's scale. Power: ≲ +10 mW CPU.
+- Test images: ImageIO and libjpeg decode JPEGs differently. Swift parity checks read a lossless PNG written by Python.
 - Workflow: one PR per session. Stop after each PR for the user's OK, and the context gets cleared between PRs.

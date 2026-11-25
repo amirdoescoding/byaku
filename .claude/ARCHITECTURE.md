@@ -12,6 +12,7 @@ Detect: Vision VNDetectFaceRectanglesRequest (ANE)
         │  faces[] with bbox, yaw, pitch, roll
         ▼
 Owner: is this face the enrolled owner?
+        │  Vision landmarks → 5 points → similarity warp to the 112×112 ArcFace template (CPU, bilinear)
         │  SFace embedding (CoreML) vs stored embedding, cosine threshold
         │  cheap path first: largest, most central face = owner candidate
         ▼
@@ -86,6 +87,9 @@ Most of the savings come from the pipeline, not the language.
 | 2026-11-25 | Owner matcher = SFace 2021dec, provisional cosine threshold 0.437 | Live bar v2 PASS (margin +0.633), see "Owner match" below |
 | 2026-11-25 | Conversion route: ONNX → onnx2torch → `torch.jit.trace` → coremltools 9.0 mlprogram, ImageType RGB raw 0–255, torch pinned 2.7.0 | Three-way parity cv2/ORT/CoreML cosine 1.0000 on 8 public faces; Swift matches too. The model normalises inside ((x−127.5)/128) |
 | 2026-11-25 | Run SFace with `.cpuAndNeuralEngine`, not `.all` | `.all` puts the head (BN + 50176→128 linear) on the GPU: +100–130 mW while a face is visible. CPU+ANE: GPU flat, 1.25 ms/embed |
+| 2026-11-25 | Swift alignment: own bilinear warp, not vImage | Matches `alignCrop` exactly (cos 1.00000 on 8 faces). vImage's Lanczos stopped at 0.977, and vImage uses a bottom-left origin with +0.5 pixel centres |
+| 2026-11-25 | Vision → 5 points: pupils, nose-region centroid, outer-lip extremes along the eye axis | Picked by pixel error to YuNet (err/IOD), never by embedding cosine |
+| 2026-11-25 | Swift owner-match threshold provisional 0.300 (Python path: 0.437) | Swift live bar v2 PASS, margin +0.228; see "Swift alignment" below |
 | 2026-11-25 | Vision feature-print baseline dropped | It was expected to lose, and a fair test needs a Swift live loop; SFace already passes |
 
 ## Power measurements
@@ -119,15 +123,39 @@ pre-registered and committed (823003f) before the re-run: p5 of every owner segm
 
 Result: v2 **PASS**, margin +0.633, threshold 0.437, FRR 0% / FAR 0% at that threshold (v1 on this data: PASS, +0.559).
 The owner photo matches (0.74), which confirms "owner suppresses, never disarms". Caveats: one owner, two strangers
-(photos), frames counted only with exactly one face; the live Swift path uses an unaligned crop until Swift alignment lands.
+(photos), frames counted only with exactly one face. Swift path: see "Swift alignment".
+
+## Swift alignment (`byaku align`, `byaku match`)
+
+- **Warp parity** (YuNet points → Swift solve + warp → SFace vs `alignCrop`): worst cos **1.00000** over 8 faces (bar 0.99). It reads a
+  lossless `parity/sample.png`, because ImageIO and libjpeg decode `sample.jpg` ~3.5 levels apart (mean abs).
+- **Landmark parity** (Vision points instead of YuNet): 7/8 faces matched, worst cos 0.06, FAIL vs 0.98 (reported, not gating). The two large
+  faces reach 0.97/0.92; the small faces fail badly. `sample.jpg` is an annotated demo image (boxes and dots painted on the faces), so this is
+  a weak proxy. Vision also finds only 2 faces in the full 2048 px image, so the check runs Vision on a 2× crop per face.
+- **Live gate** (`byaku match` + `ml/score_segments.py`, counting rule pre-registered in af2f29e, confidence cut amended 0.9 → 0.5 in 579821d
+  before any scored data, because Vision scores a clear face 0.82–0.85):
+
+| Segment | n | p5 | p50 |
+|---|---|---|---|
+| owner, light A, yaw 0 / +30 / −30 | 46 / 45 / 45 | 0.952 / 0.736 / 0.578 | 0.962 / 0.763 / 0.623 |
+| owner, light B, yaw 0 / +30 / −30 | 45 / 45 / 45 | 0.788 / 0.593 / 0.381 | 0.811 / 0.676 / 0.458 |
+| owner, glasses on / off | 46 / 46 | 0.791 / 0.847 | 0.802 / 0.856 |
+| stranger 1 / 2 (photos) | 38 / 45 | p95 0.113 / 0.159 | 0.088 / 0.098 |
+| owner photo (report only) | 41 | 0.538 | 0.623 |
+
+Result: v2 **PASS**, margin +0.228, threshold 0.300, FRR 0.3% / FAR 0%. Bar v1 (record only) FAILs at −0.155 because of one 0.042 frame in
+owner A −30. Frontal faces match as well as in Python (0.95). Turned heads lose a lot (Python held 0.94 / 0.79 at −30), so the weak point is
+Vision landmarks on yawed faces, not the warp.
 
 ## Embed cost (powermetrics rails, `detect --fps 1` vs `--embed`, face in view, 60 × 1 s, medians)
 
-| Rail | detect | + embed (CPU+ANE) | + embed (`.all`, before fix) |
-|---|---|---|---|
-| GPU | ~16 mW | ~16 mW | 100–165 mW while a face is visible |
-| ANE | ~15 mW | ~17 mW | ~17 mW |
-| CPU | ~70 mW | ~90 mW (noisy) | – |
+| Rail | detect | + embed (CPU+ANE) | + embed (`.all`, before fix) | + landmarks + align + embed (PR3) |
+|---|---|---|---|---|
+| GPU | ~16 mW | ~16 mW | 100–165 mW while a face is visible | 8 mW |
+| ANE | ~15 mW | ~17 mW | ~17 mW | 17 mW |
+| CPU | ~70 mW | ~90 mW (noisy) | – | 100 mW |
+
+PR3 alignment (Vision landmarks on the rev-3 rect + 112×112 CPU warp, 32BGRA camera output) adds ≲ +10 mW CPU at 1 Hz, nothing on the GPU.
 
 Placement (`MLComputePlan`, CPU+ANE): 58 ops on the ANE and 4 on the CPU (the linear head). Latency: 1.25 ms (CPU+ANE),
 1.5 ms (`.all`), 3.1 ms (CPU only). Embedding at 1 Hz costs ~+20–25 mW, which is below battery-measurement noise.

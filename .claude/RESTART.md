@@ -1,7 +1,7 @@
 # Restart
 
-**2026-11-25**: PR2 `feat/v0-owner-match` is done and open. Waiting for the user to confirm and merge.
-The spike questions (a)–(d) are all answered; results are in `.claude/ARCHITECTURE.md` (decision log, owner match, embed cost).
+**2026-11-25**: PR3 `feat/swift-align` is done and open. Waiting for the user to confirm and merge.
+Swift alignment works: warp parity 1.00000, live bar v2 PASS (+0.228, threshold 0.300), power ≲ +10 mW. Results are in
+`.claude/ARCHITECTURE.md` under "Swift alignment".
 
-Next session (after `/clear`): choose the next PR from `.claude/TODOS.md` "Next". Likely candidates are Swift 5-point
-alignment (needed before the Swift path can match faces for real) and the menu-bar app skeleton.
+Next session (after `/clear`): choose from `.claude/TODOS.md` "Next": the menu-bar app skeleton, or improving yawed-face owner match.

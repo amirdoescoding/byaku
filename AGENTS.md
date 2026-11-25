@@ -36,6 +36,8 @@ swift test                            # swift-testing unit tests
 scripts/power.sh                      # unplugged: whole-system W vs idle, 3×120 s alternating
 .build/debug/byaku detect --fps 1 --embed ml/models/sface.mlpackage   # + SFace on the largest face (power runs only)
 .build/debug/byaku embed ml/models/sface.mlpackage ml/models/parity  # Swift parity vs Python, ANE placement, latency
+.build/debug/byaku align ml/models/sface.mlpackage ml/models/parity  # Swift warp + Vision-landmark parity vs alignCrop
+.build/debug/byaku match ml/models/sface.mlpackage owner:… stranger:… | (cd ml && uv run score_segments.py)  # live owner gate (camera)
 (cd ml && uv run convert_sface.py)    # fetch models, SFace ONNX → CoreML, three-way parity assert (cv2/ORT/CoreML)
 (cd ml && uv run sface_live.py)       # live owner vs stranger scoring, pre-registered pass bar (camera)
 graphify query "<question>"           # ask the knowledge graph (see below)
