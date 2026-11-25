@@ -26,23 +26,24 @@ macOS first. Other platforms are not planned yet, so don't add cross-platform ab
 
 ## Commands
 
-The Swift package and `ml/` don't exist yet. These commands are **unverified** until they do. Only Xcode
-Command Line Tools are installed, and `swift test` (XCTest) may need full Xcode.
+Verified on an M1 with Command Line Tools only (no Xcode). `swift test` runs swift-testing. `ml/` doesn't exist yet.
 
 ```sh
-swift build                 # build the app
-swift test                  # run tests
-cd ml && uv run <script>    # model tooling
-graphify query "<question>" # ask the knowledge graph (see below)
+swift build                           # build the spike CLI
+swift test                            # swift-testing unit tests
+.build/debug/byaku detect --fps 2     # built-in camera → face count, yaw, pitch; prints delivered/processed fps
+.build/debug/byaku lock-test          # LOCKS THE SCREEN; verifies the lock and camera-while-locked
+scripts/power.sh                      # unplugged: whole-system W vs idle, 3×120 s alternating
+graphify query "<question>"           # ask the knowledge graph (see below)
 ```
 
-Update this section as soon as a command is real.
+Camera permission belongs to the app that launches the CLI (Terminal, VS Code), not to the binary.
 
 ## Invariants (never break these)
 
 1. **Frames never leave the device and never touch disk.** No frame logging, no screenshots, and no debug dumps in release builds.
 2. **No network calls** from the app. Models are bundled.
-3. **Power budget**: target ≤ ~1.5 W extra while guarding on Apple silicon. Every pipeline change states its power impact, measured with `sudo powermetrics --samplers cpu_power,gpu_power,ane_power`.
+3. **Power budget**: target ≤ ~1.5 W extra while guarding on Apple silicon. Every pipeline change states its power impact, measured whole-system on battery with `scripts/power.sh` (includes the camera). For a per-rail breakdown, use a separate `sudo powermetrics --samplers cpu_power,gpu_power,ane_power` run.
 4. **Away mode fails closed.** If the camera or pipeline errors in Away mode, lock the screen.
 5. **Owner data** (face embedding) stays in the user's Keychain or Application Support, and the user can delete it with one click.
 
