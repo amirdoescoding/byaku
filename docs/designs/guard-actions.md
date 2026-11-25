@@ -77,7 +77,7 @@ It never shows a camera image or the looker's position.
 | 2 | dim: black 40% (provisional) |
 | 3 | dim + edges |
 
-**Edge style: A, soft violet shadow** (the user's choice, 2026-11-26). It's an `accent` inset shadow with ~90 pt blur
+**Edge style: A, soft violet shadow** (the user's choice, 2026-11-26). It's an `accent` inset shadow with a blur of 4.7% of the screen width (90 pt on a 1920 pt display; mist only, no solid border)
 at 70% alpha, coming in from every edge, like an eye activating.
 - This is a **deliberate exception** to palette.md ("violet is never a gradient or a glow"). The overlay is the one
   place violet may glow, because it *is* the "seen" moment. palette.md and DESIGN.md record the exception.

@@ -117,7 +117,7 @@ private final class OverlayView: NSView {
         dim.backgroundColor = NSColor.black.withAlphaComponent(Tokens.Overlay.dimAlpha).cgColor
         edgeBox.masksToBounds = true  // clip the shadow that falls outside the screen
         band.fillColor = nil  // the band only casts the mist; filled, it read as a solid violet frame over the edges
-        band.shadowOffset = .zero; band.shadowRadius = Tokens.Overlay.edgeBlur; band.shadowOpacity = 1
+        band.shadowOffset = .zero; band.shadowOpacity = 1
         edgeBox.addSublayer(band)
         CATransaction.begin(); CATransaction.setDisableActions(true)
         [dim, edgeBox].forEach { $0.opacity = 0; layer!.addSublayer($0) }
@@ -130,10 +130,14 @@ private final class OverlayView: NSView {
         super.layout()
         CATransaction.begin(); CATransaction.setDisableActions(true)
         dim.frame = bounds; edgeBox.frame = bounds; band.frame = bounds
-        let p = bandPath(edgeBox.opacity > 0 ? Tokens.Overlay.edgeSpread : 0)
+        band.shadowRadius = blur
+        let p = bandPath(edgeBox.opacity > 0 ? spread : 0)
         band.path = p; band.shadowPath = p
         CATransaction.commit()
     }
+
+    private var blur: CGFloat { bounds.width * Tokens.Overlay.edgeBlur }
+    private var spread: CGFloat { bounds.width * Tokens.Overlay.edgeSpread }
 
     override func viewDidChangeEffectiveAppearance() { recolor() }
 
@@ -162,7 +166,7 @@ private final class OverlayView: NSView {
             self.edgeBox.rasterizationScale = self.window?.backingScaleFactor ?? 2
             self.edgeBox.shouldRasterize = true
         }
-        let to = bandPath(Tokens.Overlay.edgeSpread)
+        let to = bandPath(spread)
         if animated, !Tokens.Motion.reduced {
             CATransaction.begin(); CATransaction.setDisableActions(true)
             let from = bandPath(0); band.path = from; band.shadowPath = from
@@ -180,7 +184,7 @@ private final class OverlayView: NSView {
     /// shadow path (non-zero rule) leaves the screen open and only the edge casts.
     private func bandPath(_ inset: CGFloat) -> CGPath {
         let p = CGMutablePath()
-        p.addRect(bounds.insetBy(dx: -2 * Tokens.Overlay.edgeBlur, dy: -2 * Tokens.Overlay.edgeBlur))
+        p.addRect(bounds.insetBy(dx: -2 * blur, dy: -2 * blur))
         let r = bounds.insetBy(dx: inset, dy: inset)
         p.addLines(between: [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.minX, y: r.maxY),
                              CGPoint(x: r.maxX, y: r.maxY), CGPoint(x: r.maxX, y: r.minY)])
