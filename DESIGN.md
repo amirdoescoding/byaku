@@ -9,3 +9,6 @@ byaku's UI principles. The full token system is written by `impeccable-documente
 5. **Never trap the user.** The dim overlay is click-through, and a menu-bar click or shortcut dismisses it.
 6. **Accessibility.** VoiceOver labels on every control. Never rely on color alone for state.
 7. **Privacy is visible.** Show when the camera is active, and never show a camera preview unless the user asks.
+8. **Brand.** The symbol, wordmark, palette and app icon live in `design/brand/` (see `philosophy.md` and `palette.md`).
+   The menu bar uses `final/menubar-template.svg` as a template image. Violet means *seen*: in the app it marks only
+   the symbol and the "someone is looking" state.
