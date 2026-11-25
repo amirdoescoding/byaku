@@ -20,6 +20,24 @@
         ],
         "createdAt": "2026-11-25T10:52:54.312Z",
         "reason": "Claude: generated graphify visualization, gitignored, not a byaku UI"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "design/menubar/mockups.html"
+        ],
+        "createdAt": "2026-11-25T22:25:04.660Z",
+        "reason": "assistant: mockup imitates native NSMenu disabled items (system-drawn in the app, not our CSS)"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/menubar/mockups.html"
+        ],
+        "createdAt": "2026-11-25T22:25:04.676Z",
+        "reason": "assistant: mockup imitates the macOS menu bar/menu metrics, which AppKit draws in the app"
       }
     ]
   }

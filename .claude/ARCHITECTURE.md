@@ -1,6 +1,6 @@
 # Architecture
 
-Status: **v0 spike CLI exists** (`Sources/Byaku`: `detect [--embed]`, `embed`, `lock-test`; `ml/`: SFace conversion + live eval). The app pipeline below is still planned.
+Status: **menu-bar app skeleton exists** (`byaku app`: Guard on/off, face setup, delete; UI.swift/App.swift/Tokens.swift/Owner.swift). Before that, a **v0 spike CLI** (`Sources/Byaku`: `detect [--embed]`, `embed`, `lock-test`; `ml/`: SFace conversion + live eval). The app pipeline below is still planned.
 
 ## Pipeline
 
@@ -90,6 +90,10 @@ Most of the savings come from the pipeline, not the language.
 | 2026-11-25 | Swift alignment: own bilinear warp, not vImage | Matches `alignCrop` exactly (cos 1.00000 on 8 faces). vImage's Lanczos stopped at 0.977, and vImage uses a bottom-left origin with +0.5 pixel centres |
 | 2026-11-25 | Vision → 5 points: pupils, nose-region centroid, outer-lip extremes along the eye axis | Picked by pixel error to YuNet (err/IOD), never by embedding cosine |
 | 2026-11-25 | Swift owner-match threshold provisional 0.300 (Python path: 0.437) | Swift live bar v2 PASS, margin +0.228; see "Swift alignment" below |
+| 2026-11-25 | Menu-bar app = `byaku app` subcommand in the one target (no library split yet) | No `public` churn; split when the `.app` bundle needs a no-args launch |
+| 2026-11-25 | Guard alert rule v0: ≥2 faces → alert; 1 face below 0.300 → alert; unembeddable face → stay guarding (fail open) | Only the largest face is embedded; per-face embedding comes with the policy PR |
+| 2026-11-25 | Owner data = `~/Library/Application Support/byaku/owner.json`, 128 floats, overwritten on re-setup, one-click delete | Invariant 5; no image is ever stored |
+| 2026-11-25 | Camera/model errors throw (CLI exits via `must`); a Camera is single-use, `stop()` ends it | The app must show errors, never exit; no orphaned camera after a cancelled start |
 | 2026-11-25 | Vision feature-print baseline dropped | It was expected to lose, and a fair test needs a Swift live loop; SFace already passes |
 
 ## Power measurements

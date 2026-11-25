@@ -7,7 +7,7 @@ import Foundation
 func detect(fps: Double, embedModel: String?) -> Never {
     let cam = Camera(fps: fps)
     // .cpuAndNeuralEngine: with .all the SFace head runs on the GPU (+~0.1 W while a face is visible).
-    if let embedModel { cam.embed = loadEmbedder(embedModel, units: .cpuAndNeuralEngine).request }
+    if let embedModel { cam.embed = must(66) { try loadEmbedder(embedModel, units: .cpuAndNeuralEngine) }.request }
     cam.onFaces = { faces in
         let poses = faces.map { f in
             String(format: "[yaw %.0f° pitch %.0f°]",
@@ -15,7 +15,7 @@ func detect(fps: Double, embedModel: String?) -> Never {
         }
         print("faces=\(faces.count) \(poses.joined(separator: " "))")
     }
-    cam.start()
+    must(69) { try cam.start() }
     // Delivered (sensor) fps every 10 s: a power row only counts if this matches the label.
     var last = (0, 0, 0)
     let t = DispatchSource.makeTimerSource(queue: cam.queue)
@@ -38,7 +38,7 @@ func screenIsLocked() -> Bool {
 /// Also counts camera frames while locked (does Away keep seeing after lock?).
 func lockTest() -> Never {
     let cam = Camera(fps: 1)
-    cam.start()
+    must(69) { try cam.start() }
     sleep(3)
     var method = "SACLockScreenImmediate"
     if let h = dlopen("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login", RTLD_LAZY),
@@ -71,7 +71,7 @@ func embedCheck(model: String, parityDir: String) -> Never {
           let ref = try? JSONDecoder().decode([String: [Float]].self, from: data), !ref.isEmpty
     else { fail("no parity.json in \(parityDir); run `uv run convert_sface.py` in ml/", code: 66) }
 
-    let (req, compiled, _) = loadEmbedder(model, units: .cpuAndNeuralEngine)
+    let (req, compiled, _) = must(66) { try loadEmbedder(model, units: .cpuAndNeuralEngine) }
     var worst: Float = 1
     for name in ref.keys.sorted() {
         let h = VNImageRequestHandler(url: dir.appendingPathComponent(name))
@@ -115,7 +115,7 @@ func embedCheck(model: String, parityDir: String) -> Never {
     let face = dir.appendingPathComponent(ref.keys.sorted()[0])
     // Time the model itself: a reused Vision handler caches results and would report ~0 ms.
     for (label, units) in [("all", MLComputeUnits.all), ("cpuAndNeuralEngine", .cpuAndNeuralEngine), ("cpuOnly", .cpuOnly)] {
-        let m = loadEmbedder(model, units: units).model
+        let m = must(66) { try loadEmbedder(model, units: units) }.model
         guard let (name, desc) = m.modelDescription.inputDescriptionsByName.first, let constraint = desc.imageConstraint,
               let img = try? MLFeatureValue(imageAt: face, constraint: constraint),
               let input = try? MLDictionaryFeatureProvider(dictionary: [name: img])
@@ -136,7 +136,7 @@ func alignCheck(model: String, parityDir: String) -> Never {
           let yn = try? JSONDecoder().decode([String: [Double]].self, from: Data(contentsOf: dir.appendingPathComponent("landmarks.json"))),
           let (img, ctx) = bgra(dir.appendingPathComponent("sample.png"))
     else { fail("need parity.json, landmarks.json and sample.png; run `uv run convert_sface.py` in ml/", code: 66) }
-    let req = loadEmbedder(model, units: .cpuAndNeuralEngine).request
+    let req = must(66) { try loadEmbedder(model, units: .cpuAndNeuralEngine) }.request
     func embed(_ points: [CGPoint]) -> [Float]? {
         guard let pb = alignedFace(base: ctx.data!, width: img.width, height: img.height, rowBytes: ctx.bytesPerRow, points: points)
         else { return nil }
@@ -195,10 +195,9 @@ func alignCheck(model: String, parityDir: String) -> Never {
 func match(model: String, phases: [String]) -> Never {
     let fps = 5.0, enrollS = 5.0, phaseS = 10.0
     let cam = Camera(fps: fps)
-    cam.embed = loadEmbedder(model, units: .cpuAndNeuralEngine).request
+    cam.embed = must(66) { try loadEmbedder(model, units: .cpuAndNeuralEngine) }.request
     var pending: (VNFaceObservation, [Float])? = nil
     var enroll: [[Float]]? = nil, owner: [Float]? = nil, seg: (n: Int, label: String)? = nil
-    func unit(_ v: [Float]) -> [Float] { let n = v.reduce(0) { $0 + $1 * $1 }.squareRoot(); return v.map { $0 / n } }
     cam.onEmbedding = { pending = ($0, $1) }
     cam.onFaces = { faces in
         defer { pending = nil }
@@ -206,21 +205,20 @@ func match(model: String, phases: [String]) -> Never {
             FileHandle.standardError.write(String(format: "  faces=%d conf=%@ embedded=%@\n", faces.count,
                 faces.map { String(format: "%.2f", $0.confidence) }.joined(separator: ","), pending == nil ? "no" : "yes").data(using: .utf8)!)
         }
-        guard faces.count == 1, let (face, v) = pending, face.confidence >= 0.5 else { return }
-        if enroll != nil { enroll!.append(unit(v)) }
-        if let owner, let seg { print(String(format: "seg %d %@ %.4f", seg.n, seg.label, cosine(unit(v), owner))) }
+        guard let v = countedEmbedding(faces, pending) else { return }
+        if enroll != nil { enroll!.append(v) }
+        if let owner, let seg { print(String(format: "seg %d %@ %.4f", seg.n, seg.label, cosine(v, owner))) }
     }
     func say(_ s: String) { FileHandle.standardError.write("\(s)\n".data(using: .utf8)!) }
     func wait(_ s: Double) { Thread.sleep(forTimeInterval: s) }
-    cam.start()
+    must(69) { try cam.start() }
     say("enroll: you alone, look at the screen. Press Enter to start (\(Int(enrollS)) s).")
     _ = readLine()
     cam.queue.sync { enroll = [] }
     wait(enrollS)
     let e = cam.queue.sync { () -> [[Float]] in defer { enroll = nil }; return enroll! }
-    guard !e.isEmpty else { fail("no enrollment frame passed the counting rule (see the per-frame lines)", code: 70) }
-    let mean = (0..<e[0].count).map { i in e.reduce(0) { $0 + $1[i] } }
-    cam.queue.sync { owner = unit(mean) }
+    guard let template = ownerTemplate(e) else { fail("no enrollment frame passed the counting rule (see the per-frame lines)", code: 70) }
+    cam.queue.sync { owner = template }
     say("enrolled from \(e.count) frames")
     for (i, p) in phases.enumerated() {
         let label = String(p.split(separator: ":")[0])
@@ -237,6 +235,11 @@ func match(model: String, phases: [String]) -> Never {
 /// Distance from a Vision face's bbox centre to a top-left-origin pixel point.
 private func d(_ f: VNFaceObservation, _ c: CGPoint, _ W: CGFloat, _ H: CGFloat) -> CGFloat {
     hypot(f.boundingBox.midX * W - c.x, (1 - f.boundingBox.midY) * H - c.y)
+}
+
+/// CLI wrapper: a thrown error exits with `code` (the app shows it as an error state instead).
+func must<T>(_ code: Int32, _ f: () throws -> T) -> T {
+    do { return try f() } catch { fail("\(error)", code: code) }
 }
 
 setvbuf(stdout, nil, _IOLBF, 0)  // line-buffer so piped output (logs, power.sh) is live
@@ -260,11 +263,13 @@ case "align":
 case "match":
     guard args.count >= 3 else { fail("usage: byaku match <model.mlpackage> <label[:note]>... (labels: owner, stranger, owner-photo)", code: 64) }
     match(model: args[1], phases: Array(args[2...]))
+case "app":
+    runApp(model: args.count > 1 ? args[1] : "ml/models/sface.mlpackage")
 case "lock-test":
     lockTest()
 case "embed":
     guard args.count == 3 else { fail("usage: byaku embed <model.mlpackage> <parity dir>", code: 64) }
     embedCheck(model: args[1], parityDir: args[2])
 default:
-    fail("usage: byaku detect [--fps N] [--embed model.mlpackage] | embed|align <model.mlpackage> <parity dir> | match <model> <label>... | lock-test", code: 64)
+    fail("usage: byaku detect [--fps N] [--embed model.mlpackage] | embed|align <model.mlpackage> <parity dir> | match <model> <label>... | app [model] | lock-test", code: 64)
 }
