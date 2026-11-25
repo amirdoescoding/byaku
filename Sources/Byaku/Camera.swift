@@ -15,8 +15,9 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     var onFaces: ([VNFaceObservation]) -> Void = { _ in }
     private(set) var framesDelivered = 0   // sensor frames, read on `queue`
     private(set) var framesProcessed = 0   // frames Vision ran on
-    var embed: VNCoreMLRequest? = nil      // set by `detect --embed`: SFace on the largest face
+    var embed: VNCoreMLRequest? = nil      // set by `detect --embed` / `match`: SFace on the largest face, aligned
     private(set) var embedsRun = 0
+    var onEmbedding: (VNFaceObservation, [Float]) -> Void = { _, _ in }  // largest face (rect) + embedding, before onFaces
     private var dropTo: Double? = nil      // software throttle when the sensor can't go this slow
     private var lastProcessed = Date.distantPast
     private let handler = VNSequenceRequestHandler()
@@ -58,6 +59,7 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         session.addInput(input)
         let output = AVCaptureVideoDataOutput()
         output.alwaysDiscardsLateVideoFrames = true
+        output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]  // CPU warp reads BGRA
         output.setSampleBufferDelegate(self, queue: queue)
         session.addOutput(output)
         session.startRunning()
@@ -86,11 +88,14 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         framesProcessed += 1
         try? handler.perform([request], on: pb)
         let faces = request.results ?? []
-        // ponytail: unaligned bbox crop, for power measurement only; Swift 5-point alignment is TODO 1.
-        if let embed, let face = faces.max(by: { $0.boundingBox.width < $1.boundingBox.width }) {
-            embed.regionOfInterest = face.boundingBox
-            try? handler.perform([embed], on: pb)
+        // ponytail: largest face only; per-face embedding lands with the Guard policy.
+        if let embed, let face = faces.max(by: { $0.boundingBox.width < $1.boundingBox.width }),
+           let lm = landmarks([face], perform: { try handler.perform([$0], on: pb) }).first,
+           let pts = fivePoints(lm, width: CVPixelBufferGetWidth(pb), height: CVPixelBufferGetHeight(pb)),
+           let crop = alignedFace(pb, points: pts) {
+            try? VNImageRequestHandler(cvPixelBuffer: crop).perform([embed])
             embedsRun += 1
+            if let v = embedding(embed) { onEmbedding(face, v) }
         }
         onFaces(faces)
     }
