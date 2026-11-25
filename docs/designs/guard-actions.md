@@ -49,7 +49,7 @@ Each radio item carries its plain meaning in `NSMenuItem.subtitle` (macOS 14+).
 
 | Property | Value |
 |---|---|
-| Class | `NSPanel`, borderless, non-activating, level `.popUpMenu + 1` (above the overlay); never takes key focus (typing goes on in the user's app) |
+| Class | `NSPanel`, borderless, non-activating, level `.statusBar + 1` (above the overlay, below the menu so an open menu covers it); never takes key focus (typing goes on in the user's app) |
 | Size | 320 × 64 pt, fixed; under the status item, top 8 pt below the menu bar, clamped 8 pt inside the screen (same as EnrollPanel) |
 | Fill | `surface`, 1 pt `line`, 12 pt radius, standard shadow |
 | Content | the alert mark at 20 pt in `accent` (the symbol, so violet = seen), 12 pt gap, title 13/20 semibold `ink` "Someone else is looking", body 12/16 `mute`: one of the rotating lines below |
