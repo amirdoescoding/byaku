@@ -263,11 +263,13 @@ case "align":
 case "match":
     guard args.count >= 3 else { fail("usage: byaku match <model.mlpackage> <label[:note]>... (labels: owner, stranger, owner-photo)", code: 64) }
     match(model: args[1], phases: Array(args[2...]))
+case "app":
+    runApp(model: args.count > 1 ? args[1] : "ml/models/sface.mlpackage")
 case "lock-test":
     lockTest()
 case "embed":
     guard args.count == 3 else { fail("usage: byaku embed <model.mlpackage> <parity dir>", code: 64) }
     embedCheck(model: args[1], parityDir: args[2])
 default:
-    fail("usage: byaku detect [--fps N] [--embed model.mlpackage] | embed|align <model.mlpackage> <parity dir> | match <model> <label>... | lock-test", code: 64)
+    fail("usage: byaku detect [--fps N] [--embed model.mlpackage] | embed|align <model.mlpackage> <parity dir> | match <model> <label>... | app [model] | lock-test", code: 64)
 }
