@@ -6,7 +6,8 @@ import Foundation
 
 func detect(fps: Double, embedModel: String?) -> Never {
     let cam = Camera(fps: fps)
-    if let embedModel { cam.embed = loadEmbedder(embedModel, units: .all).request }
+    // .cpuAndNeuralEngine: with .all the SFace head runs on the GPU (+~0.1 W while a face is visible).
+    if let embedModel { cam.embed = loadEmbedder(embedModel, units: .cpuAndNeuralEngine).request }
     cam.onFaces = { faces in
         let poses = faces.map { f in
             String(format: "[yaw %.0f° pitch %.0f°]",
@@ -70,7 +71,7 @@ func embedCheck(model: String, parityDir: String) -> Never {
           let ref = try? JSONDecoder().decode([String: [Float]].self, from: data), !ref.isEmpty
     else { fail("no parity.json in \(parityDir); run `uv run convert_sface.py` in ml/", code: 66) }
 
-    let (req, compiled, _) = loadEmbedder(model, units: .all)
+    let (req, compiled, _) = loadEmbedder(model, units: .cpuAndNeuralEngine)
     var worst: Float = 1
     for name in ref.keys.sorted() {
         let h = VNImageRequestHandler(url: dir.appendingPathComponent(name))
@@ -83,10 +84,11 @@ func embedCheck(model: String, parityDir: String) -> Never {
     print(String(format: "parity worst=%.5f bar=0.99 -> %@", worst, worst > 0.99 ? "PASS" : "FAIL"))
 
     if #available(macOS 14.4, *) {
+      for units in [MLComputeUnits.all, .cpuAndNeuralEngine] {
         let sem = DispatchSemaphore(value: 0)
         Task {
             let cfg = MLModelConfiguration()
-            cfg.computeUnits = .all
+            cfg.computeUnits = units
             if let plan = try? await MLComputePlan.load(contentsOf: compiled, configuration: cfg),
                case let .program(program) = plan.modelStructure, let ops = program.functions["main"]?.block.operations {
                 var count: [String: Int] = [:], offANE: [String] = []
@@ -101,17 +103,18 @@ func embedCheck(model: String, parityDir: String) -> Never {
                     count[dev, default: 0] += 1
                     if dev == "gpu" || dev == "cpu" { offANE.append("\(op.operatorName)@\(dev)") }
                 }
-                print("placement (ops by preferred device): \(count.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " "))")
+                print("placement \(units == .all ? "all" : "cpuAndNeuralEngine") (ops by preferred device): \(count.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " "))")
                 print("off-ANE ops: \(offANE.joined(separator: " "))")
             } else { print("placement: MLComputePlan unavailable") }
             sem.signal()
         }
         sem.wait()
+      }
     }
 
     let face = dir.appendingPathComponent(ref.keys.sorted()[0])
     // Time the model itself: a reused Vision handler caches results and would report ~0 ms.
-    for (label, units) in [("all", MLComputeUnits.all), ("cpuOnly", .cpuOnly)] {
+    for (label, units) in [("all", MLComputeUnits.all), ("cpuAndNeuralEngine", .cpuAndNeuralEngine), ("cpuOnly", .cpuOnly)] {
         let m = loadEmbedder(model, units: units).model
         guard let (name, desc) = m.modelDescription.inputDescriptionsByName.first, let constraint = desc.imageConstraint,
               let img = try? MLFeatureValue(imageAt: face, constraint: constraint),
