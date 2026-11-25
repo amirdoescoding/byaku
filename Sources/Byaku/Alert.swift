@@ -105,45 +105,62 @@ final class WatchOverlay {
     }
 }
 
-/// Dim layer + the Iris mist: the blurred shadow of an invisible band at the screen's edge. No hard border is drawn.
-/// Static once in, so a held alert is a composited layer and costs ~0 GPU.
+/// Dim layer + the Iris mist: four accent gradient strips fading inward from the edges. No blur, no shadow, no
+/// hard border: gradients render once and then cost a texture blend (the blurred-shadow version measured +13 mW held
+/// and re-blurred on every recomposite).
 private final class OverlayView: NSView {
-    private let dim = CALayer(), edgeBox = CALayer(), band = CAShapeLayer()
+    private enum Edge: CaseIterable { case top, bottom, left, right }
+    private let dim = CALayer(), edgeBox = CALayer()
+    private let strips = Edge.allCases.map { e in (e, CAGradientLayer()) }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
         setAccessibilityElement(false)
         dim.backgroundColor = NSColor.black.withAlphaComponent(Tokens.Overlay.dimAlpha).cgColor
-        edgeBox.masksToBounds = true  // clip the shadow that falls outside the screen
-        band.fillColor = nil  // the band only casts the mist; filled, it read as a solid violet frame over the edges
-        band.shadowOffset = .zero; band.shadowOpacity = 1
-        edgeBox.addSublayer(band)
         CATransaction.begin(); CATransaction.setDisableActions(true)
+        for (e, g) in strips {
+            // Layer space is y-up: each strip runs from its screen edge (solid) to its inner side (clear).
+            switch e {
+            case .top: g.anchorPoint = CGPoint(x: 0.5, y: 1); g.startPoint = CGPoint(x: 0.5, y: 1); g.endPoint = CGPoint(x: 0.5, y: 0)
+            case .bottom: g.anchorPoint = CGPoint(x: 0.5, y: 0); g.startPoint = CGPoint(x: 0.5, y: 0); g.endPoint = CGPoint(x: 0.5, y: 1)
+            case .left: g.anchorPoint = CGPoint(x: 0, y: 0.5); g.startPoint = CGPoint(x: 0, y: 0.5); g.endPoint = CGPoint(x: 1, y: 0.5)
+            case .right: g.anchorPoint = CGPoint(x: 1, y: 0.5); g.startPoint = CGPoint(x: 1, y: 0.5); g.endPoint = CGPoint(x: 0, y: 0.5)
+            }
+            g.locations = Tokens.Overlay.mist.map { NSNumber(value: Double($0.at)) }
+            edgeBox.addSublayer(g)
+        }
         [dim, edgeBox].forEach { $0.opacity = 0; layer!.addSublayer($0) }
         CATransaction.commit()
         recolor()
     }
     required init?(coder: NSCoder) { fatalError() }
 
+    /// Mist depth scales with the display (Tokens.Overlay.edgeDepth × width).
+    private var depth: CGFloat { (bounds.width * Tokens.Overlay.edgeDepth).rounded() }
+
     override func layout() {
         super.layout()
         CATransaction.begin(); CATransaction.setDisableActions(true)
-        dim.frame = bounds; edgeBox.frame = bounds; band.frame = bounds
-        band.shadowRadius = blur
-        let p = bandPath(edgeBox.opacity > 0 ? spread : 0)
-        band.path = p; band.shadowPath = p
+        dim.frame = bounds; edgeBox.frame = bounds
+        let w = bounds.width, h = bounds.height, d = depth
+        for (e, g) in strips {
+            switch e {
+            case .top: g.bounds = CGRect(x: 0, y: 0, width: w, height: d); g.position = CGPoint(x: w / 2, y: h)
+            case .bottom: g.bounds = CGRect(x: 0, y: 0, width: w, height: d); g.position = CGPoint(x: w / 2, y: 0)
+            case .left: g.bounds = CGRect(x: 0, y: 0, width: d, height: h); g.position = CGPoint(x: 0, y: h / 2)
+            case .right: g.bounds = CGRect(x: 0, y: 0, width: d, height: h); g.position = CGPoint(x: w, y: h / 2)
+            }
+        }
         CATransaction.commit()
     }
-
-    private var blur: CGFloat { bounds.width * Tokens.Overlay.edgeBlur }
-    private var spread: CGFloat { bounds.width * Tokens.Overlay.edgeSpread }
 
     override func viewDidChangeEffectiveAppearance() { recolor() }
 
     private func recolor() {
         let a = cg(Tokens.accent, in: self)
-        band.shadowColor = a
+        let colors = Tokens.Overlay.mist.map { a.copy(alpha: $0.alpha) ?? a }
+        strips.forEach { $0.1.colors = colors }
     }
 
     func set(_ m: Mode?, animated: Bool) {
@@ -155,40 +172,12 @@ private final class OverlayView: NSView {
         fade(dim, to: dimOn ? 1 : 0, enter: Tokens.Motion.enter)
         let wasOn = edgeBox.opacity > 0
         fade(edgeBox, to: edgesOn ? Tokens.Overlay.edgeAlpha : 0, enter: Tokens.Motion.edgeIn)
-        guard edgesOn, !wasOn else { return }
-        // The edge spreads inward from the screen's border (§6); Reduce Motion: fade only.
-        // Live, the 90 pt shadow re-blurs on every recomposite (measured +13 mW held, >100 mW while scrolling), so once
-        // the spread lands it is cached as a bitmap; each redraw then only blends a texture.
-        edgeBox.shouldRasterize = false
-        let settle = animated && !Tokens.Motion.reduced ? Tokens.Motion.edgeIn : 0
-        DispatchQueue.main.asyncAfter(deadline: .now() + settle) { [weak self] in
-            guard let self, self.edgeBox.opacity > 0 else { return }
-            self.edgeBox.rasterizationScale = self.window?.backingScaleFactor ?? 2
-            self.edgeBox.shouldRasterize = true
+        guard edgesOn, !wasOn, animated, !Tokens.Motion.reduced else { return }
+        // The mist grows inward from each edge (§6): scale the strip's depth about its screen edge. Reduce Motion: fade only.
+        for (e, g) in strips {
+            let key = e == .top || e == .bottom ? "transform.scale.y" : "transform.scale.x"
+            CATransaction.begin(); CATransaction.setDisableActions(true); g.setValue(0.3, forKeyPath: key); CATransaction.commit()
+            animate(g, key, to: 1, duration: Tokens.Motion.edgeIn)
         }
-        let to = bandPath(spread)
-        if animated, !Tokens.Motion.reduced {
-            CATransaction.begin(); CATransaction.setDisableActions(true)
-            let from = bandPath(0); band.path = from; band.shadowPath = from
-            CATransaction.commit()
-            animate(band, "path", to: to, duration: Tokens.Motion.edgeIn)
-            animate(band, "shadowPath", to: to, duration: Tokens.Motion.edgeIn)
-        } else {
-            CATransaction.begin(); CATransaction.setDisableActions(true)
-            band.path = to; band.shadowPath = to
-            CATransaction.commit()
-        }
-    }
-
-    /// A frame from well outside the screen to `inset` inside it. The inner rect winds the other way, so the
-    /// shadow path (non-zero rule) leaves the screen open and only the edge casts.
-    private func bandPath(_ inset: CGFloat) -> CGPath {
-        let p = CGMutablePath()
-        p.addRect(bounds.insetBy(dx: -2 * blur, dy: -2 * blur))
-        let r = bounds.insetBy(dx: inset, dy: inset)
-        p.addLines(between: [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.minX, y: r.maxY),
-                             CGPoint(x: r.maxX, y: r.maxY), CGPoint(x: r.maxX, y: r.minY)])
-        p.closeSubpath()
-        return p
     }
 }

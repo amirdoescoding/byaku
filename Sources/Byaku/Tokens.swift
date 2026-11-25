@@ -14,8 +14,10 @@ enum Tokens {
     /// Guard overlay (docs/designs/guard-actions.md §4). Iris is the one sanctioned violet glow: an `accent` shadow from every edge.
     enum Overlay {
         static let dimAlpha: CGFloat = 0.40, edgeAlpha: Float = 0.70
-        /// Mist depth scales with the display: × screen width in pt (90 / 30 pt on a 1920 pt display, ~67 / 22 on a 1440 pt laptop).
-        static let edgeBlur: CGFloat = 0.047, edgeSpread: CGFloat = 0.016
+        /// Iris mist depth = × screen width in pt (96 pt on a 1920 pt display, 72 on a 1440 pt laptop).
+        static let edgeDepth: CGFloat = 0.05
+        /// Mist falloff from the edge inward (location 0 = edge, 1 = inner side): eased so it reads as mist, not a band.
+        static let mist: [(at: CGFloat, alpha: CGFloat)] = [(0, 1), (0.2, 0.62), (0.45, 0.3), (0.7, 0.1), (1, 0)]
     }
 
     enum Motion {
