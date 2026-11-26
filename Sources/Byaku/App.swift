@@ -137,7 +137,7 @@ final class AppController: NSObject, NSMenuDelegate {
         menu.addItem(g)
         let a = entry("Away", #selector(toggleAway), key: "a")
         a.state = awayOn ? .on : .off
-        a.isEnabled = owner != nil && embedder != nil && enrollCam == nil && panel?.isVisible != true && msgPanel?.isVisible != true
+        a.isEnabled = owner != nil && embedder != nil && enrollCam == nil && panel?.isVisible != true
         menu.addItem(a)
         menu.addItem(.separator())
         let vol = NSMenuItem()
@@ -149,14 +149,22 @@ final class AppController: NSObject, NSMenuDelegate {
         menu.addItem(vol)
         let sounds = NSMenu()
         let picked = Alarm.systemSounds().contains(alarm.sound) ? alarm.sound : ""  // a vanished sound plays (and shows) the siren
+        let soundItem = NSMenuItem(title: "Alarm sound", action: nil, keyEquivalent: "")
+        var rows: [SoundRow] = []
         for (i, name) in ([""] + Alarm.systemSounds()).enumerated() {
-            let s = entry(name.isEmpty ? "Siren" : name, #selector(pickSound(_:)))
-            s.representedObject = name
-            s.state = name == picked ? .on : .off
+            let row = SoundRow(name: name, title: name.isEmpty ? "Siren" : name, checked: name == picked)
+            row.onPick = { [weak self, weak soundItem] r in  // the menu stays open: pick, hear it, pick the next
+                guard let self else { return }
+                rows.forEach { $0.checked = $0 === r }
+                self.defaults.set(r.name, forKey: Key.alarmSound); self.alarm.sound = r.name
+                if #available(macOS 14.4, *) { soundItem?.subtitle = r.title }
+                self.alarm.preview(level: self.alarmVolume, seconds: Tokens.Away.pickSeconds)
+            }
+            rows.append(row)
+            let s = NSMenuItem(); s.view = row
             sounds.addItem(s)
             if i == 0 { sounds.addItem(.separator()) }
         }
-        let soundItem = NSMenuItem(title: "Alarm sound", action: nil, keyEquivalent: "")
         soundItem.submenu = sounds
         soundItem.isEnabled = !awayOn
         if #available(macOS 14.4, *) { soundItem.subtitle = picked.isEmpty ? "Siren" : picked }
@@ -167,7 +175,6 @@ final class AppController: NSObject, NSMenuDelegate {
             if #available(macOS 14.4, *) { m.subtitle = messageLength().map { "Recorded · \($0) s" } ?? "Spoken line" }
             menu.addItem(m)
         }
-        menu.addItem(entry("Play test (3 s)", #selector(playTest)))
         menu.addItem(.separator())
         let modes = NSMenu()
         for m in Mode.allCases {
@@ -283,7 +290,7 @@ final class AppController: NSObject, NSMenuDelegate {
             self.msgPanel?.show(saved ? .recorded(self.messageLength() ?? 0)
                                       : .failed(self.shortTake ? "Too short. Try again." : "The recording failed. Try again."))
         }
-        if alarm.playing, !awayOn { alarm.stop() }  // a Play test mustn't run into the mic
+        if alarm.playing, !awayOn { alarm.stop() }  // a sound preview mustn't run into the mic
         msgRun += 1
         p.show(messageLength().map { .recorded($0) } ?? .idle)
         p.present(below: button)
@@ -365,17 +372,12 @@ final class AppController: NSObject, NSMenuDelegate {
 
     // MARK: Away
 
-    @objc private func pickSound(_ sender: NSMenuItem) {
-        let name = sender.representedObject as? String ?? ""
-        defaults.set(name, forKey: Key.alarmSound); alarm.sound = name  // no auto-play: Play test previews
-    }
-
-    @objc private func playTest() { alarm.preview(level: alarmVolume, seconds: Tokens.Away.testSeconds) }
 
     @objc private func toggleAway() { awayOn ? disarm() : arm() }
 
     private func arm() {
         guard owner != nil, embedder != nil, !awayOn else { return }
+        if msgPanel?.isVisible == true { endMessage() }  // arming closes the message panel (and drops a take in progress)
         awayOn = true; awayRun += 1; awayNote = nil
         guardCam?.stop(); guardCam = nil  // Guard pauses; guardOn stays so disarm resumes it
         countdown(away: awayRun, Tokens.Away.armSeconds)

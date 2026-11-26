@@ -375,16 +375,22 @@ class CardPanel: AnchoredPanel {
     private var buttons: [PanelButton] = []
     private let width: CGFloat
 
-    init(width: CGFloat, title: String) {
+    /// `closable`: a × in the top-right corner (presses onCancel), for panels that wait on the user (Message).
+    init(width: CGFloat, title: String, closable: Bool = false) {
         self.width = width
         super.init(size: NSSize(width: width, height: 160), level: .statusBar)
         setAccessibilityTitle(title)
         let v = contentView!
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        titleLabel.frame = NSRect(x: 88, y: 116, width: width - 112, height: 20)
+        titleLabel.frame = NSRect(x: 88, y: 116, width: width - 112 - (closable ? 16 : 0), height: 20)
         body.font = .systemFont(ofSize: 12); body.maximumNumberOfLines = 2
         body.frame = NSRect(x: 88, y: 80, width: width - 112, height: 32)
         [ring, titleLabel, body].forEach(v.addSubview)
+        if closable {
+            let close = PanelButton("", role: .close) { [weak self] in self?.onCancel() }
+            close.setFrameOrigin(NSPoint(x: width - 12 - 24, y: 160 - 12 - 24))
+            v.addSubview(close)
+        }
     }
 
     override var canBecomeKey: Bool { true }  // Esc and VoiceOver; nonactivating, so the user's app keeps focus
@@ -469,7 +475,7 @@ final class MessagePanel: CardPanel {
     private var phase: Phase?
 
     init() {
-        super.init(width: 336, title: "Alarm message")
+        super.init(width: 336, title: "Alarm message", closable: true)
         mic.image = NSImage(systemSymbolName: "mic", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 24, weight: .regular))
         mic.contentTintColor = Tokens.ink
@@ -526,6 +532,39 @@ private final class SurfaceView: NSView {
         layer!.backgroundColor = cg(Tokens.surface, in: self)
         layer!.borderColor = cg(Tokens.line, in: self)
     }
+}
+
+// MARK: - SoundRow
+
+/// One row of the Alarm sound submenu: checkmark + name, drawn like a menu item. A custom view because a click on a
+/// plain NSMenuItem closes the menu; this one picks and previews and the menu stays open (iPhone alarm picker style).
+final class SoundRow: NSView {
+    let name: String, title: String
+    var checked: Bool { didSet { needsDisplay = true; setAccessibilitySelected(checked) } }
+    var onPick: (SoundRow) -> Void = { _ in }
+
+    init(name: String, title: String, checked: Bool) {
+        self.name = name; self.title = title; self.checked = checked
+        super.init(frame: NSRect(x: 0, y: 0, width: 168, height: 22))
+        setAccessibilityElement(true); setAccessibilityRole(.menuItem); setAccessibilityLabel(title)
+        setAccessibilitySelected(checked)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ dirty: NSRect) {
+        let lit = enclosingMenuItem?.isHighlighted == true  // the menu redraws the view when the highlight moves
+        if lit {
+            NSColor.selectedContentBackgroundColor.setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 0), xRadius: 4, yRadius: 4).fill()
+        }
+        let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.menuFont(ofSize: 0),
+                                                    .foregroundColor: lit ? NSColor.selectedMenuItemTextColor : NSColor.labelColor]
+        if checked { ("✓" as NSString).draw(at: NSPoint(x: 11, y: 3), withAttributes: attrs) }
+        (title as NSString).draw(at: NSPoint(x: 26, y: 3), withAttributes: attrs)
+    }
+
+    override func mouseUp(with event: NSEvent) { onPick(self) }
+    override func accessibilityPerformPress() -> Bool { onPick(self); return true }
 }
 
 // MARK: - VolumeSlider
