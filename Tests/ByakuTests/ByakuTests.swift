@@ -174,3 +174,51 @@ func awayLookerRules(scores: [Float?], looker: Bool) {
     let b = svgPath(WordmarkView.d).boundingBoxOfPath, v = WordmarkView.box
     #expect(abs(b.minX - v.minX) < 1 && abs(b.maxX - v.maxX) < 1 && abs(b.minY - v.minY) < 1 && abs(b.maxY - v.maxY) < 1)
 }
+
+// MARK: ScanPose (guided face scan)
+
+/// Feeds (faces, yaw) frames at 15 fps; returns all events.
+private func scan(_ p: inout ScanPose, _ frames: [(Int, Double)]) -> [ScanPose.Event] {
+    frames.flatMap { p.frame(faces: $0.0, yaw: $0.1, dt: 1.0 / 15) }
+}
+private func hold(_ yaw: Double, _ seconds: Double) -> [(Int, Double)] { Array(repeating: (1, yaw), count: Int(seconds * 15)) }
+
+@Test func scanPoseCapturesStraightLeftRightInOrder() {
+    var p = ScanPose()
+    let ev = scan(&p, hold(0, 1.1) + hold(-20, 1.1) /* wrong way: no capture */ + hold(20, 1.1) + hold(-40, 1.1))  // full right turn counts
+    #expect(ev.filter { if case .capture = $0 { true } else { false } } == [.capture(.straight), .capture(.left), .capture(.right)])
+    #expect(ev.last == .done && p.step == nil)
+}
+
+@Test func scanPoseHoldPausesOutOfBandWithoutResetting() {
+    var p = ScanPose()
+    _ = scan(&p, hold(0, 0.6) + hold(20, 2))  // leaves the straight band mid-hold
+    #expect(p.step == .straight && abs(p.hold - 0.6) < 0.07)
+    #expect(scan(&p, hold(2, 0.5)) == [.capture(.straight)])
+}
+
+@Test func scanPoseTwoFacesPauseNeverCountAndResume() {
+    var p = ScanPose()
+    #expect(scan(&p, [(2, 0)]) == [.pause(lost: false)])
+    #expect(!p.counting && p.hold == 0)
+    #expect(scan(&p, [(1, 0)]) == [.resume])
+    #expect(p.counting)
+}
+
+@Test func scanPoseFailsAfterPauseLimit() {
+    var p = ScanPose()
+    let ev = scan(&p, Array(repeating: (0, 0), count: Int(Tokens.Scan.pauseFail * 15) + 1))
+    #expect(ev.first == .pause(lost: true) && ev.last == .fail(lost: true))
+    #expect(scan(&p, hold(0, 2)).isEmpty)  // failed: nothing more counts
+}
+
+@Test func scanPoseOnlyStraightHoldsCountOnTheStraightStep() {
+    var p = ScanPose()
+    var straightYaws: [Double] = []  // frames the face print would take: counting while the step was .straight
+    for f in hold(20, 0.5) + hold(0, 1.2) + hold(20, 1.1) {
+        let wasStraight = p.step == .straight
+        _ = p.frame(faces: f.0, yaw: f.1, dt: 1.0 / 15)
+        if wasStraight, p.counting { straightYaws.append(f.1) }
+    }
+    #expect(straightYaws.count >= 15 && straightYaws.allSatisfy { $0 == 0 })  // the hold's frames, never a turned one
+}

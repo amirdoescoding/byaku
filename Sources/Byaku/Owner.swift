@@ -52,6 +52,55 @@ struct Debounce {
     }
 }
 
+/// Guided face scan: straight → left → right. Each pose is captured after `hold` s inside its band (time from frame
+/// timestamps, so it is the same on any queue). Leaving the band pauses the hold without resetting it. 0 or 2+ faces
+/// pause the scan and those frames never count; `pauseFail` s of pause fails it. Yaw in degrees, + = the user's own left.
+struct ScanPose {
+    enum Step: Int { case straight, left, right }
+    enum Event: Equatable { case pause(lost: Bool), resume, nudge, capture(Step), done, fail(lost: Bool) }
+    typealias S = Tokens.Scan
+
+    private(set) var step: Step? = .straight  // nil = done
+    private(set) var hold = 0.0, paused: Bool? = nil, failed = false  // paused: true = lost, false = several faces
+    /// This frame is inside the current band (feeds the fill; on .straight it also feeds the face print).
+    private(set) var counting = false
+    private var pausedFor = 0.0, outOfBand = 0.0
+
+    static func inBand(_ s: Step, yaw: Double) -> Bool {
+        switch s {
+        case .straight: abs(yaw) < S.straight
+        case .left: yaw >= S.sideMin
+        case .right: -yaw >= S.sideMin  // no ceiling: a full turn counts (side frames never reach the template)
+        }
+    }
+
+    mutating func frame(faces: Int, yaw: Double, dt: Double) -> [Event] {
+        counting = false
+        guard let s = step, !failed else { return [] }
+        var ev: [Event] = []
+        if faces != 1 {
+            let lost = faces == 0
+            if paused != lost { ev.append(.pause(lost: lost)) }
+            paused = lost; pausedFor += dt
+            if pausedFor >= S.pauseFail { failed = true; ev.append(.fail(lost: lost)) }
+            return ev
+        }
+        if paused != nil { paused = nil; pausedFor = 0; ev.append(.resume) }
+        guard Self.inBand(s, yaw: yaw) else {
+            outOfBand += dt
+            if s != .straight, outOfBand >= S.nudgeAfter, outOfBand - dt < S.nudgeAfter { ev.append(.nudge) }
+            return ev
+        }
+        outOfBand = 0; counting = true; hold += dt
+        if hold >= S.hold {
+            ev.append(.capture(s)); hold = 0
+            step = Step(rawValue: s.rawValue + 1)
+            if step == nil { ev.append(.done) }
+        }
+        return ev
+    }
+}
+
 /// Owner data = the 128 floats only, never an image (invariant 5). One file, one-click delete.
 /// The user's recorded Away message (replaces the spoken line). A new take is written to `tmp` and swapped in only
 /// when it's kept, so a cancelled re-record leaves the old message. Deleted with one click (AGENTS invariant 5).
