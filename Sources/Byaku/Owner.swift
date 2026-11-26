@@ -56,7 +56,10 @@ struct OwnerStore {
     var url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("byaku/owner.json")
 
-    func load() -> [Float]? { (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode([Float].self, from: $0) } }
+    /// Anything but a 128-float SFace template reads as "no face set up" (a bad file would trip cosine's precondition).
+    func load() -> [Float]? {
+        (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode([Float].self, from: $0) }.flatMap { $0.count == 128 ? $0 : nil }
+    }
 
     func save(_ v: [Float]) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

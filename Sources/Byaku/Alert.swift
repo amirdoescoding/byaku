@@ -4,7 +4,7 @@ import AppKit
 
 /// What an alert shows besides the banner (§2.1). Stored by raw value in UserDefaults.
 enum Mode: Int, CaseIterable {
-    case whisper, iris, shade, awaken
+    case whisper = 0, iris = 1, shade = 2, awaken = 3  // persisted in UserDefaults: never renumber
 
     var title: String { ["Whisper", "Iris", "Shade", "Awaken"][rawValue] }
     var subtitle: String { ["banner only", "violet edges", "light dim", "edges + dim"][rawValue] }
@@ -93,7 +93,8 @@ final class WatchOverlay {
     /// Covers the screen except the menu bar, so the status item and its menu stay reachable (DESIGN §5).
     private static func window(for screen: NSScreen) -> NSWindow {
         let f = screen.frame
-        let rect = NSRect(x: f.minX, y: f.minY, width: f.width, height: screen.visibleFrame.maxY - f.minY)
+        let top = min(screen.visibleFrame.maxY, f.maxY - NSStatusBar.system.thickness)  // auto-hidden menu bar: visibleFrame reaches the top
+        let rect = NSRect(x: f.minX, y: f.minY, width: f.width, height: top - f.minY)
         let w = NSWindow(contentRect: rect, styleMask: .borderless, backing: .buffered, defer: false)
         w.level = .statusBar
         w.ignoresMouseEvents = true
@@ -176,8 +177,7 @@ private final class OverlayView: NSView {
         // The mist grows inward from each edge (§6): scale the strip's depth about its screen edge. Reduce Motion: fade only.
         for (e, g) in strips {
             let key = e == .top || e == .bottom ? "transform.scale.y" : "transform.scale.x"
-            CATransaction.begin(); CATransaction.setDisableActions(true); g.setValue(0.3, forKeyPath: key); CATransaction.commit()
-            animate(g, key, to: 1, duration: Tokens.Motion.edgeIn)
+            animate(g, key, from: 0.3, to: 1, duration: Tokens.Motion.edgeIn)
         }
     }
 }

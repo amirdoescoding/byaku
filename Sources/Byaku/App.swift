@@ -27,7 +27,8 @@ final class AppController: NSObject, NSMenuDelegate {
     private let defaults = UserDefaults.standard
     private let banner = BannerPanel(), overlay = WatchOverlay()
     private var lifted = false, bannerClosed = false  // "Lift for now" / × : until the next separate alert
-    private var mode: Mode { Mode(rawValue: defaults.integer(forKey: "mode")) ?? .iris }
+    private enum Key { static let mode = "mode", banner = "banner", sound = "sound" }
+    private var mode: Mode { Mode(rawValue: defaults.integer(forKey: Key.mode)) ?? .iris }
 
     private var panel: EnrollPanel?
     private var enrollCam: Camera?
@@ -36,7 +37,7 @@ final class AppController: NSObject, NSMenuDelegate {
 
     init(model: String) {
         super.init()
-        defaults.register(defaults: ["mode": Mode.iris.rawValue, "banner": true, "sound": false])
+        defaults.register(defaults: [Key.mode: Mode.iris.rawValue, Key.banner: true, Key.sound: false])
         banner.onClose = { [weak self] in self?.bannerClosed = true; self?.syncActions() }
         owner = store.load()
         do { embedder = try loadEmbedder(model, units: .cpuAndNeuralEngine).request }  // compile once, reuse per run
@@ -56,7 +57,7 @@ final class AppController: NSObject, NSMenuDelegate {
         if s == .alert, state != .alert {  // a new, separate alert
             lifted = false; bannerClosed = false
             banner.advance()
-            if defaults.bool(forKey: "sound") { NSSound(named: "Submarine")?.play() }  // once, never repeated (§5)
+            if defaults.bool(forKey: Key.sound) { NSSound(named: "Submarine")?.play() }  // once, never repeated (§5)
             NSAccessibility.post(element: item.button as Any, notification: .announcementRequested,
                                  userInfo: [.announcement: "Someone else is looking at your screen",
                                             .priority: NSAccessibilityPriorityLevel.high.rawValue])
@@ -70,7 +71,7 @@ final class AppController: NSObject, NSMenuDelegate {
     /// enrollment, delete) goes through set(), so they can't outlive it.
     private func syncActions() {
         let on = state == .alert && !lifted
-        if on, defaults.bool(forKey: "banner"), !bannerClosed, let button = item.button { banner.present(below: button) }
+        if on, defaults.bool(forKey: Key.banner), !bannerClosed, let button = item.button { banner.present(below: button) }
         else { banner.dismiss() }
         if on { overlay.show(mode) } else { overlay.hide() }
     }
@@ -113,8 +114,8 @@ final class AppController: NSObject, NSMenuDelegate {
         let modeItem = NSMenuItem(title: "Mode", action: nil, keyEquivalent: "")
         modeItem.submenu = modes
         menu.addItem(modeItem)
-        let b = entry("Banner", #selector(toggleBanner)); b.state = defaults.bool(forKey: "banner") ? .on : .off
-        let snd = entry("Sound", #selector(toggleSound)); snd.state = defaults.bool(forKey: "sound") ? .on : .off
+        let b = entry("Banner", #selector(toggleBanner)); b.state = defaults.bool(forKey: Key.banner) ? .on : .off
+        let snd = entry("Sound", #selector(toggleSound)); snd.state = defaults.bool(forKey: Key.sound) ? .on : .off
         menu.addItem(b); menu.addItem(snd)
         menu.addItem(.separator())
         menu.addItem(entry(owner == nil ? "Set up face…" : "Set up face again…", #selector(setUpFace), key: "e"))
@@ -133,9 +134,9 @@ final class AppController: NSObject, NSMenuDelegate {
 
     // MARK: Guard actions
 
-    @objc private func pickMode(_ sender: NSMenuItem) { defaults.set(sender.tag, forKey: "mode"); syncActions() }
-    @objc private func toggleBanner() { defaults.set(!defaults.bool(forKey: "banner"), forKey: "banner"); syncActions() }
-    @objc private func toggleSound() { defaults.set(!defaults.bool(forKey: "sound"), forKey: "sound") }
+    @objc private func pickMode(_ sender: NSMenuItem) { defaults.set(sender.tag, forKey: Key.mode); syncActions() }
+    @objc private func toggleBanner() { defaults.set(!defaults.bool(forKey: Key.banner), forKey: Key.banner); syncActions() }
+    @objc private func toggleSound() { defaults.set(!defaults.bool(forKey: Key.sound), forKey: Key.sound) }
     @objc private func liftForNow() { lifted = true; syncActions() }
 
     // MARK: Guard
@@ -148,10 +149,10 @@ final class AppController: NSObject, NSMenuDelegate {
         let cam = Camera(fps: 1)  // 1 fps + embed: ~0.3–0.4 W camera/Vision + ~20–25 mW SFace (ARCHITECTURE power rows)
         cam.embed = embedder
         var debounce = Debounce()  // fresh per Guard start; touched only on cam.queue
-        cam.onFrame = { [weak self] embeddings in
+        cam.onFrame = { [weak self, weak cam] embeddings in  // weak cam: the camera owns this closure
             let looker = frameHasLooker(embeddings.map { $0.map { cosine(unit($0), owner) } })
             let v: GuardState = debounce.add(looker) ? .alert : .guarding
-            DispatchQueue.main.async { if self?.guardCam === cam, self?.state != v { self?.set(v) } }
+            DispatchQueue.main.async { if let cam, self?.guardCam === cam, self?.state != v { self?.set(v) } }
         }
         guardCam = cam
         set(.guarding)
@@ -214,11 +215,11 @@ final class AppController: NSObject, NSMenuDelegate {
         }
         var pending: (VNFaceObservation, [Float])?, frames: [[Float]] = [], started = false, several = false
         cam.onEmbedding = { pending = ($0, $1) }
-        cam.onFaces = { [weak self] faces in  // cam.queue
+        cam.onFaces = { [weak self, weak cam] faces in  // cam.queue; weak cam: the camera owns this closure
             defer { pending = nil }
             if !started {
                 started = true
-                DispatchQueue.main.async { self?.countdown(run: run, cam: cam, from: seconds) { frames } }
+                DispatchQueue.main.async { if let cam { self?.countdown(run: run, cam: cam, from: seconds) { frames } } }
             }
             if faces.count >= 2, !several { several = true; DispatchQueue.main.async { self?.finish(run, .severalFaces) } }
             if let v = countedEmbedding(faces, pending) { frames.append(v) }

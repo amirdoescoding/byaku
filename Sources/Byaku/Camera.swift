@@ -104,7 +104,8 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             let marked = facing.isEmpty ? [] : landmarks(Array(facing), perform: { try handler.perform([$0], on: pb) })
             var out: [[Float]?] = marked.map { lm in
                 guard let pts = fivePoints(lm, width: w, height: h), let crop = alignedFace(pb, points: pts) else { return nil }
-                try? VNImageRequestHandler(cvPixelBuffer: crop).perform([embed])
+                // A failed perform must not hand back the previous face's vector (the request is reused per face).
+                guard (try? VNImageRequestHandler(cvPixelBuffer: crop).perform([embed])) != nil else { return nil }
                 embedsRun += 1
                 return embedding(embed)
             }

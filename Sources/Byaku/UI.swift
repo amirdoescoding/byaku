@@ -95,9 +95,10 @@ func cg(_ c: NSColor, in v: NSView) -> CGColor {
 }
 
 /// Explicit layer animation (backing layers of NSViews don't animate implicitly).
-func animate(_ layer: CALayer, _ key: String, to value: Any, duration: Double, timing: CAMediaTimingFunction = Tokens.Motion.easeOut) {
+/// `from`: pass it when the start value was set in this same run-loop turn; presentation() still shows the old frame.
+func animate(_ layer: CALayer, _ key: String, from: Any? = nil, to value: Any, duration: Double, timing: CAMediaTimingFunction = Tokens.Motion.easeOut) {
     let a = CABasicAnimation(keyPath: key)
-    a.fromValue = layer.presentation()?.value(forKeyPath: key) ?? layer.value(forKeyPath: key)  // start from what's on screen
+    a.fromValue = from ?? layer.presentation()?.value(forKeyPath: key) ?? layer.value(forKeyPath: key)  // start from what's on screen
     a.toValue = value
     a.duration = duration
     a.timingFunction = timing
@@ -331,13 +332,14 @@ class AnchoredPanel: NSPanel {
         let l = contentView!.layer!
         if isVisible, alphaValue == 1 { if canBecomeKey { makeKey() }; return }
         alphaValue = 0
-        l.transform = Tokens.Motion.reduced ? CATransform3DIdentity : scale(Tokens.Motion.enterScale, about: origin)
+        let start = Tokens.Motion.reduced ? CATransform3DIdentity : scale(Tokens.Motion.enterScale, about: origin)
+        l.transform = start
         orderFrontRegardless(); if canBecomeKey { makeKey() }
         NSAnimationContext.runAnimationGroup { c in
             c.duration = Tokens.Motion.enter; c.timingFunction = Tokens.Motion.easeOut
             animator().alphaValue = 1
         }
-        animate(l, "transform", to: CATransform3DIdentity, duration: Tokens.Motion.enter)
+        animate(l, "transform", from: start, to: CATransform3DIdentity, duration: Tokens.Motion.enter)
         DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.enter) { [weak self] in self?.invalidateShadow() }
     }
 

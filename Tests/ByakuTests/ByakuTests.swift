@@ -49,6 +49,19 @@ func lookerRules(scores: [Float?], looker: Bool) {
     #expect(run([true, true, false, false, true, false, false]) == [false, true, true, true, true, true, true])  // a looker resets the clear count
 }
 
+@Test func modeRawValuesAndLadderArePinned() {
+    #expect(Mode.allCases.map(\.rawValue) == [0, 1, 2, 3])  // persisted in UserDefaults "mode"
+    #expect(Mode.allCases.map(\.edges) == [false, true, false, true])
+    #expect(Mode.allCases.map(\.dim) == [false, false, true, true])
+}
+
+@Test func ownerStoreRejectsWrongLength() throws {
+    let s = OwnerStore(url: FileManager.default.temporaryDirectory.appendingPathComponent("byaku-test-\(UUID())/owner.json"))
+    try s.save([1, 2, 3])
+    #expect(s.load() == nil)
+    try s.delete()
+}
+
 @Test func ownerTemplateIsUnitMean() {
     let t = ownerTemplate([[1, 0], [0, 1]])!
     #expect(abs(t[0] - t[1]) < 1e-6 && abs(t[0] * t[0] + t[1] * t[1] - 1) < 1e-6)
@@ -58,8 +71,9 @@ func lookerRules(scores: [Float?], looker: Bool) {
 @Test func ownerStoreRoundTripAndDelete() throws {
     let s = OwnerStore(url: FileManager.default.temporaryDirectory.appendingPathComponent("byaku-test-\(UUID())/owner.json"))
     #expect(s.load() == nil)
-    try s.save([0.5, -0.25])
-    #expect(s.load() == [0.5, -0.25])
+    let v = (0..<128).map { Float($0) / 128 - 0.5 }  // a real template is 128 SFace floats
+    try s.save(v)
+    #expect(s.load() == v)
     try s.delete()
     #expect(s.load() == nil)
     try s.delete()  // deleting twice is fine
