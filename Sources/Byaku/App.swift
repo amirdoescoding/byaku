@@ -28,7 +28,7 @@ final class AppController: NSObject, NSMenuDelegate {
     private let defaults = UserDefaults.standard
     private let banner = BannerPanel(), overlay = WatchOverlay()
     private var lifted = false, bannerClosed = false  // "Lift for now" / × : until the next separate alert
-    private enum Key { static let mode = "mode", banner = "banner", sound = "sound", guardOn = "guard", alarmVolume = "alarmVolume" }
+    private enum Key { static let mode = "mode", banner = "banner", sound = "sound", guardOn = "guard", alarmVolume = "alarmVolume", alarmSound = "alarmSound" }
     /// Persisted so Guard resumes at launch (and at login) if it was on at quit.
     private var guardOn: Bool {
         get { defaults.bool(forKey: Key.guardOn) }
@@ -46,6 +46,13 @@ final class AppController: NSObject, NSMenuDelegate {
     private let alarm = Alarm()
     private var awayNote: String?  // why a fail-closed lock happened; shown once in the next menu
 
+    // Away message (docs/designs/away-mode.md §Message). The mic runs only while recording.
+    private let recorder = MessageRecorder()
+    private var msgPanel: MessagePanel?
+    private var msgRun = 0  // bumps when the panel closes or the step changes, so stale permission/lead callbacks drop
+    private var recording = false, shortTake = false
+    private var tick: Timer?  // the panel's 1 s countdown while recording or playing
+
     private var panel: EnrollPanel?
     private var enrollCam: Camera?
     private var enrollRun = 0  // bumps on cancel/retry so stale callbacks are dropped
@@ -53,7 +60,8 @@ final class AppController: NSObject, NSMenuDelegate {
 
     init(model: String) {
         super.init()
-        defaults.register(defaults: [Key.mode: Mode.iris.rawValue, Key.banner: true, Key.sound: false, Key.alarmVolume: 1.0])
+        defaults.register(defaults: [Key.mode: Mode.iris.rawValue, Key.banner: true, Key.sound: false, Key.alarmVolume: 1.0, Key.alarmSound: ""])
+        alarm.sound = defaults.string(forKey: Key.alarmSound) ?? ""
         banner.onClose = { [weak self] in self?.bannerClosed = true; self?.syncActions() }
         owner = store.load()
         do { embedder = try loadEmbedder(model, units: .cpuAndNeuralEngine).request }  // compile once, reuse per run
@@ -129,7 +137,7 @@ final class AppController: NSObject, NSMenuDelegate {
         menu.addItem(g)
         let a = entry("Away", #selector(toggleAway), key: "a")
         a.state = awayOn ? .on : .off
-        a.isEnabled = owner != nil && embedder != nil && enrollCam == nil && panel?.isVisible != true
+        a.isEnabled = owner != nil && embedder != nil && enrollCam == nil && panel?.isVisible != true && msgPanel?.isVisible != true
         menu.addItem(a)
         menu.addItem(.separator())
         let vol = NSMenuItem()
@@ -139,6 +147,26 @@ final class AppController: NSObject, NSMenuDelegate {
         }
         vol.view = slider
         menu.addItem(vol)
+        let sounds = NSMenu()
+        let picked = Alarm.systemSounds().contains(alarm.sound) ? alarm.sound : ""  // a vanished sound plays (and shows) the siren
+        for (i, name) in ([""] + Alarm.systemSounds()).enumerated() {
+            let s = entry(name.isEmpty ? "Siren" : name, #selector(pickSound(_:)))
+            s.representedObject = name
+            s.state = name == picked ? .on : .off
+            sounds.addItem(s)
+            if i == 0 { sounds.addItem(.separator()) }
+        }
+        let soundItem = NSMenuItem(title: "Alarm sound", action: nil, keyEquivalent: "")
+        soundItem.submenu = sounds
+        soundItem.isEnabled = !awayOn
+        if #available(macOS 14.4, *) { soundItem.subtitle = picked.isEmpty ? "Siren" : picked }
+        menu.addItem(soundItem)
+        if Bundle.main.bundleURL.pathExtension == "app" {  // terminal run: mic TCC would go to the terminal, which has no plist key
+            let m = entry("Message…", #selector(openMessage))
+            m.isEnabled = !awayOn
+            if #available(macOS 14.4, *) { m.subtitle = messageLength().map { "Recorded · \($0) s" } ?? "Spoken line" }
+            menu.addItem(m)
+        }
         menu.addItem(entry("Play test (3 s)", #selector(playTest)))
         menu.addItem(.separator())
         let modes = NSMenu()
@@ -233,7 +261,114 @@ final class AppController: NSObject, NSMenuDelegate {
         }
     }
 
+    // MARK: Away message
+
+    @objc private func openMessage() {
+        guard let button = item.button else { return }
+        let p = msgPanel ?? MessagePanel()
+        msgPanel = p
+        p.onCancel = { [weak self] in self?.endMessage() }
+        p.onRecord = { [weak self] in self?.beginRecording() }
+        p.onStop = { [weak self] in self?.stopMessageStep() }
+        p.onPlay = { [weak self] in self?.playMessage() }
+        p.onDelete = { [weak self] in
+            guard let self else { return }
+            do { try self.recorder.store.delete() } catch { NSSound.beep(); return }  // ponytail: same as Delete face data
+            self.msgPanel?.deleted()
+        }
+        p.onOpenSettings = { [weak self] in self?.openPrivacy("Privacy_Microphone"); self?.endMessage() }
+        recorder.onEnd = { [weak self] saved in
+            guard let self, self.recording else { return }  // a cancel (endMessage) ends quietly
+            self.recording = false; self.tick?.invalidate()
+            self.msgPanel?.show(saved ? .recorded(self.messageLength() ?? 0)
+                                      : .failed(self.shortTake ? "Too short. Try again." : "The recording failed. Try again."))
+        }
+        if alarm.playing, !awayOn { alarm.stop() }  // a Play test mustn't run into the mic
+        msgRun += 1
+        p.show(messageLength().map { .recorded($0) } ?? .idle)
+        p.present(below: button)
+    }
+
+    /// Seconds in the saved message, nil when there is none (or it can't be read).
+    private func messageLength() -> Int? {
+        guard recorder.store.exists, let p = try? AVAudioPlayer(contentsOf: recorder.store.url) else { return nil }
+        return max(1, Int(p.duration.rounded()))
+    }
+
+    private func beginRecording() {
+        msgRun += 1
+        let run = msgRun
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized: startRecording(run)
+        case .notDetermined:
+            msgPanel?.show(.requesting)
+            AVCaptureDevice.requestAccess(for: .audio) { ok in  // any queue
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, run == self.msgRun else { return }
+                    ok ? self.startRecording(run) : self.msgPanel?.show(.denied)
+                }
+            }
+        default: msgPanel?.show(.denied)
+        }
+    }
+
+    /// With VoiceOver on, its "Recording, speak now" would land in the take: start the mic once it has been said.
+    private func startRecording(_ run: Int) {
+        let n = Int(Tokens.Away.messageSeconds)
+        msgPanel?.show(.recording(n))
+        let lead = NSWorkspace.shared.isVoiceOverEnabled ? Tokens.Away.voiceOverLead : 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + lead) { [weak self] in
+            guard let self, run == self.msgRun else { return }
+            guard self.recorder.start() else { self.msgPanel?.show(.failed("No microphone is available.")); return }
+            self.recording = true; self.shortTake = false
+            self.countdown(n) { .recording($0) }
+        }
+    }
+
+    private func playMessage() {
+        msgRun += 1
+        let run = msgRun
+        let len = alarm.previewMessage(level: alarmVolume) { [weak self] in
+            guard let self, run == self.msgRun else { return }
+            self.tick?.invalidate(); self.msgPanel?.show(self.messageLength().map { .recorded($0) } ?? .idle)
+        }
+        guard let len else { msgPanel?.show(.failed("The message can't be played. Record it again.")); return }
+        let n = max(1, Int(len.rounded()))
+        countdown(n) { .playing($0, of: n) }
+    }
+
+    /// Stop while recording keeps the take; Stop while playing goes back to the saved message.
+    private func stopMessageStep() {
+        if recording { shortTake = recorder.elapsed < Tokens.Away.minMessageSeconds; recorder.finish(save: true); return }
+        msgRun += 1; tick?.invalidate(); alarm.stop()
+        msgPanel?.show(messageLength().map { .recorded($0) } ?? .idle)
+    }
+
+    /// The panel's countdown, one step per second. The end comes from the recorder or the player, not from here.
+    private func countdown(_ n: Int, _ phase: @escaping (Int) -> MessagePanel.Phase) {
+        tick?.invalidate()
+        var left = n
+        msgPanel?.show(phase(left))
+        tick = Timer.scheduledTimer(withTimeInterval: Tokens.Motion.countStep, repeats: true) { [weak self] t in
+            left -= 1
+            if left < 1 { t.invalidate() } else { self?.msgPanel?.show(phase(left)) }
+        }
+    }
+
+    /// Close, Esc, lock, Open settings: a take in progress is thrown away (the old message stays).
+    private func endMessage() {
+        msgRun += 1; tick?.invalidate()
+        recording = false; recorder.finish(save: false)
+        if alarm.playing, !awayOn { alarm.stop() }
+        msgPanel?.dismiss()
+    }
+
     // MARK: Away
+
+    @objc private func pickSound(_ sender: NSMenuItem) {
+        let name = sender.representedObject as? String ?? ""
+        defaults.set(name, forKey: Key.alarmSound); alarm.sound = name  // no auto-play: Play test previews
+    }
 
     @objc private func playTest() { alarm.preview(level: alarmVolume, seconds: Tokens.Away.testSeconds) }
 
@@ -401,6 +536,7 @@ final class AppController: NSObject, NSMenuDelegate {
 
     @objc private func screenLocked() {
         if panel?.isVisible == true { endEnrollment() }
+        if msgPanel?.isVisible == true { endMessage() }
         if state == .alert { lifted = true; syncActions() }  // nothing to shield behind the lock screen
     }
 
@@ -421,12 +557,13 @@ final class AppController: NSObject, NSMenuDelegate {
         if app.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
     }
 
-    @objc private func openCameraSettings() {
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera")!)
+    @objc private func openCameraSettings() { openPrivacy("Privacy_Camera") }
+    private func openPrivacy(_ pane: String) {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!)
     }
 
     @objc private func quit() {
-        guardCam?.stop(); enrollCam?.stop(); stopWatching(); alarm.stop()  // alarm.stop restores the volume
+        guardCam?.stop(); enrollCam?.stop(); stopWatching(); recorder.finish(save: false); alarm.stop()  // alarm.stop restores the volume
         NSApp.terminate(nil)
     }
 }

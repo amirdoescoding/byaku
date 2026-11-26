@@ -64,13 +64,33 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate 
     func start(level: Float, voice: Bool = true) {
         if playing { guard testing, voice else { return }; stop() }
         playing = true; testing = !voice
-        let dev = defaultOutput()
-        saved = (dev, get(dev, volumeSel) as Float32?, get(dev, kAudioDevicePropertyMute) as UInt32?)
-        set(dev, kAudioDevicePropertyMute, UInt32(0)); set(dev, volumeSel, Float32(level))
+        takeOutput(level)
         cycle(run)
     }
 
-    /// Tone only, for `seconds`, at `level` (Play test). Then the volume goes back.
+    /// The recording once, at `level` (the message panel's Play). Returns its length, or nil if it can't play.
+    /// `done` runs on main when it ends by itself; not after stop().
+    func previewMessage(level: Float, done: @escaping () -> Void) -> Double? {
+        guard !playing || testing else { return nil }
+        if testing { stop() }
+        guard let p = try? AVAudioPlayer(contentsOf: message.url) else { return nil }
+        playing = true; testing = true
+        takeOutput(level)
+        p.delegate = self
+        guard p.play() else { stop(); return nil }
+        msg = p; previewDone = done
+        return p.duration
+    }
+
+    private var previewDone: (() -> Void)?
+
+    private func takeOutput(_ level: Float) {
+        let dev = defaultOutput()
+        saved = (dev, get(dev, volumeSel) as Float32?, get(dev, kAudioDevicePropertyMute) as UInt32?)
+        set(dev, kAudioDevicePropertyMute, UInt32(0)); set(dev, volumeSel, Float32(level))
+    }
+
+    /// Tone only, for `seconds`, at `level` (Play test), with the picked sound. Then the volume goes back.
     func preview(level: Float, seconds: Double) {
         guard !playing || testing else { return }  // never cut into a real alarm
         if testing { stop() }  // a second Play test restarts, with the sound picked since
@@ -84,7 +104,7 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate 
         playing = false; testing = false; inTone = false; run += 1
         engine?.stop(); engine = nil
         voice.stopSpeaking(at: .immediate)
-        msg?.stop(); msg = nil
+        msg?.stop(); msg = nil; previewDone = nil
         if let s = saved {
             if let v = s.volume { set(s.device, volumeSel, v) }
             if let m = s.mute { set(s.device, kAudioDevicePropertyMute, m) }
@@ -128,7 +148,8 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate 
     func audioPlayerDidFinishPlaying(_ p: AVAudioPlayer, successfully: Bool) {
         DispatchQueue.main.async { [weak self] in
             guard let self, p === self.msg else { return }  // stop() clears msg: a late callback is dropped
-            self.msg = nil; self.cycle(self.run)
+            self.msg = nil
+            if self.testing { let d = self.previewDone; self.stop(); d?() } else { self.cycle(self.run) }
         }
     }
 

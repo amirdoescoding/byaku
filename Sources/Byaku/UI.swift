@@ -122,9 +122,9 @@ func scale(_ s: CGFloat, about p: CGPoint) -> CATransform3D {
 
 // MARK: - ProgressRing
 
-/// 48 pt ring: spinner while the camera starts, a 5 s countdown, a drawn-on check, or a seam on failure.
+/// 48 pt ring: spinner while the camera starts, an N s countdown (default 5), a drawn-on check, or a seam on failure.
 final class ProgressRing: NSView {
-    enum Phase: Equatable { case starting, counting(remaining: Int), done, failed }
+    enum Phase: Equatable { case starting, counting(remaining: Int, of: Int = 5), done, failed }
 
     private let track = CAShapeLayer(), progress = CAShapeLayer(), spinner = CAShapeLayer(), check = CAShapeLayer()
     private let number = NSTextField(labelWithString: "")
@@ -182,11 +182,11 @@ final class ProgressRing: NSView {
         switch new {
         case .starting:
             progress.strokeStart = 0; progress.strokeEnd = 0
-        case .counting(let r):
+        case .counting(let r, let n):
             number.stringValue = "\(r)"
             progress.strokeStart = 0
-            let to = CGFloat(6 - r) / 5  // the ring reaches the next fifth as this second runs out
-            if reduced { progress.removeAllAnimations(); progress.strokeEnd = CGFloat(5 - r) / 5 }
+            let to = CGFloat(n + 1 - r) / CGFloat(n)  // the ring reaches the next step as this second runs out
+            if reduced { progress.removeAllAnimations(); progress.strokeEnd = CGFloat(n - r) / CGFloat(n) }
             else { animate(progress, "strokeEnd", to: to, duration: Tokens.Motion.countStep, timing: CAMediaTimingFunction(name: .linear)) }
         case .done:
             progress.removeAllAnimations(); progress.strokeStart = 0; progress.strokeEnd = 1
@@ -204,7 +204,7 @@ final class ProgressRing: NSView {
 final class PanelButton: NSButton {
     enum Role { case primary, secondary, close }  // close: a 24 pt × with no border (banner)
     let role: Role
-    private let onPress: () -> Void
+    var onPress: () -> Void
     private var hovering = false
     private let focus = CAShapeLayer()
 
@@ -363,40 +363,75 @@ class AnchoredPanel: NSPanel {
     }
 }
 
-// MARK: - EnrollPanel
+// MARK: - CardPanel
 
-/// Set-up-face panel. Grows from its trigger (the status item) and shrinks back into it. No camera preview, ever.
-final class EnrollPanel: AnchoredPanel {
-    enum Phase: Equatable { case starting, counting(Int), saved, noFace, severalFaces, cameraDenied, failed(String) }
-
-    var onCancel: () -> Void = {}, onRetry: () -> Void = {}, onOpenSettings: () -> Void = {}
-    private let ring = ProgressRing(frame: NSRect(x: 24, y: 84, width: 48, height: 48))
+/// The 160 pt tall panel card shared by Set up face and Message: a 48 pt glyph slot (ring), title + body, a right-aligned
+/// button row. Subclasses map their phases onto render().
+class CardPanel: AnchoredPanel {
+    typealias Spec = (String, PanelButton.Role, () -> Void)
+    var onCancel: () -> Void = {}
+    let ring = ProgressRing(frame: NSRect(x: 24, y: 84, width: 48, height: 48))
     private let titleLabel = NSTextField(labelWithString: ""), body = NSTextField(wrappingLabelWithString: "")
     private var buttons: [PanelButton] = []
-    private var autoClose: DispatchWorkItem?
+    private let width: CGFloat
 
-    init() {
-        super.init(size: NSSize(width: 320, height: 160), level: .statusBar)
-        setAccessibilityTitle("Set up face")
+    init(width: CGFloat, title: String) {
+        self.width = width
+        super.init(size: NSSize(width: width, height: 160), level: .statusBar)
+        setAccessibilityTitle(title)
         let v = contentView!
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        titleLabel.frame = NSRect(x: 88, y: 116, width: 208, height: 20)
+        titleLabel.frame = NSRect(x: 88, y: 116, width: width - 112, height: 20)
         body.font = .systemFont(ofSize: 12); body.maximumNumberOfLines = 2
-        body.frame = NSRect(x: 88, y: 80, width: 208, height: 32)
+        body.frame = NSRect(x: 88, y: 80, width: width - 112, height: 32)
         [ring, titleLabel, body].forEach(v.addSubview)
     }
 
     override var canBecomeKey: Bool { true }  // Esc and VoiceOver; nonactivating, so the user's app keeps focus
-    override func dismiss() { autoClose?.cancel(); super.dismiss() }
-    /// Esc presses the visible Cancel/Done button, so it gets the same press feedback.
+    /// Esc presses the visible Cancel/Done/Stop button, so it gets the same press feedback.
     override func cancelOperation(_ sender: Any?) {
-        if let b = buttons.first(where: { $0.title == "Cancel" || $0.title == "Done" }) { b.performClick(nil) } else { onCancel() }
+        if let b = buttons.first(where: { ["Cancel", "Done", "Stop"].contains($0.title) }) { b.performClick(nil) } else { onCancel() }
     }
+
+    func render(_ ringPhase: ProgressRing.Phase, _ title: String, _ text: String, _ specs: [Spec], announce: String?) {
+        ring.set(ringPhase)
+        titleLabel.textColor = Tokens.ink; body.textColor = Tokens.mute
+        titleLabel.stringValue = title; body.stringValue = text
+        // A lone title sits on the ring's centre line; with a body, the pair fills the 56 pt row.
+        titleLabel.setFrameOrigin(NSPoint(x: 88, y: text.isEmpty ? 98 : 116))
+        if buttons.map(\.title) != specs.map(\.0) {  // same buttons across countdown ticks (keeps hover state)
+            buttons.forEach { $0.removeFromSuperview() }
+            buttons = specs.map { t, role, act in PanelButton(t, role: role) { act() } }
+            var x = width - 24
+            for b in buttons.reversed() { x -= b.frame.width; b.setFrameOrigin(NSPoint(x: x, y: 24)); x -= 8; contentView!.addSubview(b) }
+            buttons.last { $0.role == .primary }?.keyEquivalent = "\r"  // Return; focus ring stays off until the keyboard moves focus
+        } else {
+            for (b, s) in zip(buttons, specs) { b.onPress = s.2 }  // same titles, fresh actions
+        }
+        if let announce {
+            NSAccessibility.post(element: self, notification: .announcementRequested,
+                                 userInfo: [.announcement: announce, .priority: NSAccessibilityPriorityLevel.high.rawValue])
+        }
+    }
+}
+
+// MARK: - EnrollPanel
+
+/// Set-up-face panel. Grows from its trigger (the status item) and shrinks back into it. No camera preview, ever.
+final class EnrollPanel: CardPanel {
+    enum Phase: Equatable { case starting, counting(Int), saved, noFace, severalFaces, cameraDenied, failed(String) }
+
+    var onRetry: () -> Void = {}, onOpenSettings: () -> Void = {}
+    private var autoClose: DispatchWorkItem?
+
+    init() { super.init(width: 320, title: "Set up face") }
+
+    override func dismiss() { autoClose?.cancel(); super.dismiss() }
 
     func show(_ p: Phase) {
         autoClose?.cancel()
         let cancel = ("Cancel", PanelButton.Role.secondary, onCancel), retry = ("Try again", PanelButton.Role.primary, onRetry)
-        let (ringPhase, title, text, specs): (ProgressRing.Phase, String, String, [(String, PanelButton.Role, () -> Void)]) = switch p {
+        let (ringPhase, title, text, specs): (ProgressRing.Phase, String, String, [Spec]) = switch p {
         case .starting: (.starting, "Starting camera…", "", [cancel])
         case .counting(let r): (.counting(remaining: r), "Look at the screen",
                                 "Be the only person in view. Nothing is saved except a face print.", [cancel])
@@ -407,32 +442,74 @@ final class EnrollPanel: AnchoredPanel {
                              [cancel, ("Open camera settings…", .primary, onOpenSettings)])
         case .failed(let why): (.failed, "Couldn't set up face", why, [cancel, retry])
         }
-        ring.set(ringPhase)
-        titleLabel.textColor = Tokens.ink; body.textColor = Tokens.mute
-        titleLabel.stringValue = title; body.stringValue = text
-        // A lone title sits on the ring's centre line; with a body, the pair fills the 56 pt row.
-        titleLabel.setFrameOrigin(NSPoint(x: 88, y: text.isEmpty ? 98 : 116))
-        if buttons.map(\.title) != specs.map(\.0) {  // same buttons across countdown ticks (keeps hover state)
-            buttons.forEach { $0.removeFromSuperview() }
-            buttons = specs.map { t, role, act in PanelButton(t, role: role) { act() } }
-            var x: CGFloat = 296
-            for b in buttons.reversed() { x -= b.frame.width; b.setFrameOrigin(NSPoint(x: x, y: 24)); x -= 8; contentView!.addSubview(b) }
-            buttons.last { $0.role == .primary }?.keyEquivalent = "\r"  // Return; focus ring stays off until the keyboard moves focus
-        }
-        let announcement: String? = switch p {
+        let announce: String? = switch p {
         case .starting: nil
         case .counting(let r): r == 5 ? "\(title). \(text) 5" : "\(r)"
         default: "\(title). \(text)"
         }
-        if let announcement {
-            NSAccessibility.post(element: self, notification: .announcementRequested,
-                                 userInfo: [.announcement: announcement, .priority: NSAccessibilityPriorityLevel.high.rawValue])
-        }
+        render(ringPhase, title, text, specs, announce: announce)
         if p == .saved {
             let w = DispatchWorkItem { [weak self] in self?.onCancel() }
             autoClose = w
             DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.autoClose, execute: w)
         }
+    }
+}
+
+// MARK: - MessagePanel
+
+/// Away message panel (docs/designs/away-mode.md §Message): record up to 8 s, play it back, record again, delete.
+/// Wider than EnrollPanel so Delete / Record again / Play fit on one row.
+final class MessagePanel: CardPanel {
+    enum Phase: Equatable { case idle, requesting, recording(Int), recorded(Int), playing(Int, of: Int), denied, failed(String) }
+
+    var onRecord: () -> Void = {}, onStop: () -> Void = {}, onPlay: () -> Void = {}, onDelete: () -> Void = {},
+        onOpenSettings: () -> Void = {}
+    private let mic = NSImageView()
+    private var phase: Phase?
+
+    init() {
+        super.init(width: 336, title: "Alarm message")
+        mic.image = NSImage(systemSymbolName: "mic", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 24, weight: .regular))
+        mic.contentTintColor = Tokens.ink
+        mic.frame = ring.frame
+        mic.setAccessibilityElement(false)
+        contentView!.addSubview(mic)
+    }
+
+    func show(_ p: Phase) {
+        let first = p != phase  // countdown ticks re-render silently
+        phase = p
+        let cancel = ("Cancel", PanelButton.Role.secondary, onCancel), stop = ("Stop", PanelButton.Role.primary, onStop)
+        let max = Int(Tokens.Away.messageSeconds)
+        let (ringPhase, title, text, specs): (ProgressRing.Phase, String, String, [Spec]) = switch p {
+        case .idle: (.failed, "Record a message", "Plays instead of the spoken line. Up to \(max) s.", [cancel, ("Record", .primary, onRecord)])
+        case .requesting: (.starting, "Waiting for microphone…", "Choose Allow in the system prompt.", [cancel])
+        case .recording(let r): (.counting(remaining: r, of: max), "Recording…", "Speak now. Stops by itself at \(max) s.", [stop])
+        case .recorded(let s): (.done, "Message saved", "\(s) s. Stored on this Mac only.",
+                                [("Delete", .secondary, onDelete), ("Record again", .secondary, onRecord), ("Play", .primary, onPlay)])
+        case .playing(let r, let n): (.counting(remaining: r, of: n), "Playing…", "At the alarm volume.", [stop])
+        case .denied: (.failed, "Microphone access is off", "Allow byaku in System Settings, then try again.",
+                       [cancel, ("Open microphone settings…", .primary, onOpenSettings)])
+        case .failed(let why): (.failed, "Couldn't record", why, [cancel, ("Try again", .primary, onRecord)])
+        }
+        let announce: String? = switch p {
+        case .idle, .requesting: first && p == .requesting ? "\(title) \(text)" : nil
+        case .recording: first ? "Recording. Up to \(max) seconds. Speak now." : nil
+        case .recorded(let s): first ? "Message saved, \(s) seconds. Stored on this Mac only." : nil
+        case .playing: first ? "Playing." : nil
+        default: first ? "\(title). \(text)" : nil
+        }
+        mic.isHidden = p != .idle; ring.isHidden = p == .idle
+        render(ringPhase, title, text, specs, announce: announce)
+    }
+
+    /// Delete returns to idle; VoiceOver hears what plays now.
+    func deleted() {
+        show(.idle)
+        NSAccessibility.post(element: self, notification: .announcementRequested,
+                             userInfo: [.announcement: "Message deleted. The spoken line is used.", .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 }
 
