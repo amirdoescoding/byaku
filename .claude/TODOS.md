@@ -10,8 +10,19 @@
 
 - [ ] Verify Vision rev-3 yaw/pitch are continuous (turn head under `byaku detect`); tune the ±30°/±25° gaze gate with a second person
 - [ ] Power: `scripts/power.sh` row with Guard on + one face (whole system); scroll baseline without the overlay
-- [ ] Away alarm: loud SFX + "byaku spotted a threat!" voice + looping sound; needs a redistributable audio source (Epidemic's licence doesn't allow bundling)
+- [ ] Away: recorded message (mic permission, record/play/delete UI, file in Application Support); replaces the spoken line when set. Mockups first
+- [ ] Away: covering the lens keeps (black) frames coming, so the stall check never fires; consider "too dark for N s → lock"
 - [ ] Guard sound: replace `Submarine` once a licence-clean file exists
+
+## PR9 Away mode (2026-11-26)
+- [x] Spec `docs/designs/away-mode.md` + mockups `design/away/` (icon A solid iris, menu as drawn; approved)
+- [x] `lockScreen()` shared (Alarm.swift); `Alarm`: computed siren + system voice loop, full volume/unmute, restored on stop
+- [x] Away arm/arming/watch/trigger/disarm in AppController; unlock = disarm; fail closed (start error, 10 s stall)
+- [x] Unit tests: Away looker rule (lone unembeddable counts), siren bounds/loudness, away/alarm icon shapes
+- [ ] Live (user): `byaku alarm-test`, arm → photo → lock + alarm, unlock → silence + volume back, owner no trigger, Guard resumes
+- [ ] Power row: `scripts/power.sh` with Away armed, no face (expected same as Guard)
+- [ ] Not done: impeccable skill pass on the icon/menu diff (the two impeccable agents aren't installed)
+- [ ] Away rule "a lone unembeddable face counts" was my call, not the user's: revisit first if the owner walking back triggers it
 
 ## Done: PR8 Open at login + install docs (2026-11-26)
 - [x] "Open at login" (SMAppService.mainApp), Guard resumes at launch if it was on; `bundle.sh --install` + first-run model conversion
@@ -68,7 +79,7 @@
 
 ## Actions
 - [x] Guard: banner, Iris/dim overlay (all displays, click-through) (PR6)
-- [ ] Away: manual arm, loud sound + lock, fail closed; owner face suppresses but never disarms (disarm = click)
+- [x] Away: manual arm, loud sound + lock, fail closed; owner face suppresses; disarm = unlock or click (PR9)
 - [ ] Opt-in auto-arm for Away (off by default; revisit after a week of manual use)
 
 ## App

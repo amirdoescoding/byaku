@@ -46,7 +46,7 @@ The design target is ≤ ~1.5 W of extra power while guarding. Details are in
 - [x] Owner enrollment
 - [x] Gaze heuristic
 - [x] Guard actions: banner, dim
-- [ ] Away actions: sound, lock
+- [x] Away actions: sound, lock
 - [x] Menu bar + settings
 - [x] Build-from-source `.app` with Open at login
 - [ ] Signed `.app` release

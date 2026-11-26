@@ -32,7 +32,7 @@ Actions
 | Mode | Who counts as a threat | Actions | Failure behavior |
 |------|------------------------|---------|------------------|
 | Guard | Any non-owner face looking at the screen | Banner and/or dim (configurable) | Fail open: stop guarding and show an icon state |
-| Away | **Any** face looking, the owner included unless re-verified | Sound + lock | **Fail closed: lock** |
+| Away | Any facing face but the owner's, a lone unembeddable face included | Lock + siren/voice until unlock | **Fail closed: lock** (start error, or no frame for 10 s) |
 
 ## Actions
 
@@ -40,10 +40,10 @@ Actions
 - **Iris / dim** (shipped): `WatchOverlay`, one click-through borderless window per screen at `.statusBar`, below the menu
   bar; gradient-strip mist and/or 40% black. Chosen per alert by the Mode ladder (Whisper/Iris/Shade/Awaken).
 - **Guard sound** (shipped, opt-in): one `NSSound("Submarine")` per alert.
-- **Sound**: `NSSound` / `AVAudioPlayer` at full volume.
-- **Lock**: an **open risk**, to be settled in the spike. `SACLockScreenImmediate` is a private API (it may break or be
-  rejected). `pmset displaysleepnow` only locks if "require password immediately" is on. Pick a method, verify that it
-  really locks, and document the result here.
+- **Away alarm** (shipped, `Alarm.swift`): `AVAudioEngine` + `AVAudioSourceNode` rendering `siren(t)` (960/770 Hz two-tone)
+  for 3 s, then `AVSpeechSynthesizer` says "byaku spotted a threat!", looped until unlock. Default output unmuted at full volume
+  while it plays (CoreAudio `VirtualMainVolume`/`Mute`), restored on stop. No audio file ships, so there is nothing to license.
+- **Lock** (shipped): `lockScreen()` = `SACLockScreenImmediate` (private, dlopen). `lock-test` falls back to `pmset displaysleepnow`.
 
 ## Planned layout
 
@@ -100,6 +100,9 @@ Most of the savings come from the pipeline, not the language.
 | 2026-11-26 | Debounce: fire on 2 of the last 3 frames, clear after 3 clean (~2 s / ~3 s at 1 fps) | One stray frame never fires; user choice "balanced" |
 | 2026-11-26 | Iris mist = 4 `CAGradientLayer` strips (5% of screen width), not a blurred shadow | Live powermetrics: blurred shadow +13 mW held and >100 mW while scrolling; rasterising it was fragile; strips measured 2–4 mW held vs 1–5 mW baseline |
 | 2026-11-26 | Window levels: overlay `.statusBar`, banner `.statusBar + 1`, NSMenu above | `.screenSaver` would have covered the banner and "Lift for now" |
+| 2026-11-26 | Away audio = computed siren + system voice, no bundled file | Licence-clean by construction; a user-recorded line comes next |
+| 2026-11-26 | Away disarm = the screen unlocking (or the menu before a trigger); Guard pauses while armed and resumes after | Unlock needs the owner's password/Touch ID, so it is the explicit disarm |
+| 2026-11-26 | Away fail closed = lock without siren, then Away off; siren only if the lock call is missing | A camera fault is not a looker; never leave an armed Mac unlocked and unwatched |
 | 2026-11-25 | Owner data = `~/Library/Application Support/byaku/owner.json`, 128 floats, overwritten on re-setup, one-click delete | Invariant 5; no image is ever stored |
 | 2026-11-25 | Camera/model errors throw (CLI exits via `must`); a Camera is single-use, `stop()` ends it | The app must show errors, never exit; no orphaned camera after a cancelled start |
 | 2026-11-25 | Vision feature-print baseline dropped | It was expected to lose, and a fair test needs a Swift live loop; SFace already passes |

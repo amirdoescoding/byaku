@@ -1,8 +1,7 @@
 # Restart
 
-**2026-11-26**: PR8 `feat/app-bundle-login`: "Open at login" menu item (SMAppService), Guard resumes at launch if it was on,
-`scripts/bundle.sh --install` (converts the model on first run, installs to ~/Applications, reopens), README Install section.
-Live checks passed except a real log-out/log-in. Install with `scripts/bundle.sh --install`.
+**2026-11-26**: PR9 `feat/away-mode`: Away mode (⌘A): 5 s arming, the Guard pipeline with the stricter rule, lock + computed siren
++ system voice until unlock, fail closed. Unit tests pass. **Live checks are waiting on the user** (see TODOS "PR9").
+Run: `scripts/bundle.sh --install`, then `.build/debug/byaku alarm-test 6` for the sound alone.
 
-Next session (after `/clear`), pick from `.claude/TODOS.md` "Next": a stable signing identity, the yaw/pitch granularity check +
-gate tuning with a second person, or the yawed-face owner match.
+Next: finish the PR9 live checks, then the recorded-message PR (mockups first).
