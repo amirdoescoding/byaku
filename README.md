@@ -5,7 +5,7 @@
 byaku is an open-source macOS menu-bar app. It watches your webcam for faces that aren't yours and are looking
 at your screen. When it finds one, it reacts. Everything runs on your Mac, and no frame ever leaves it.
 
-> Status: **pre-alpha**. The design is done, the code is not. See [Roadmap](#roadmap).
+> Status: **pre-alpha**. Guard works end to end; Away mode and a signed release are next. See [Roadmap](#roadmap).
 
 ## Modes
 
@@ -47,19 +47,57 @@ The design target is ≤ ~1.5 W of extra power while guarding. Details are in
 - [x] Gaze heuristic
 - [x] Guard actions: banner, dim
 - [ ] Away actions: sound, lock
-- [ ] Menu bar + settings
+- [x] Menu bar + settings
+- [x] Build-from-source `.app` with Open at login
 - [ ] Signed `.app` release
 - [ ] Trained gaze classifier (`ml/`)
 
-## Development
+## Install
 
-Build the app (Apple silicon, Command Line Tools are enough):
+byaku isn't notarized yet, so you build it from source. It takes one script.
+
+**You need**
+- macOS 14 or later on **Apple silicon**. Building needs an arm64 Mac (the model converter pins torch 2.7.0, which has no Intel macOS build).
+- Command Line Tools: `xcode-select --install` (full Xcode is not needed)
+- [uv](https://docs.astral.sh/uv/): `brew install uv`
+
+**Build and install**
 
 ```sh
-(cd ml && uv run convert_sface.py)   # once: fetches and converts the face model
-scripts/bundle.sh                    # → build/Byaku.app
-open build/Byaku.app
+git clone https://github.com/amirdoescoding/byaku.git
+cd byaku
+scripts/bundle.sh --install
 ```
+
+This builds `Byaku.app`, signs it locally (ad-hoc), copies it to `~/Applications/Byaku.app`, and opens it. The first run
+also downloads the SFace face model and converts it to Core ML. uv sets up Python 3.12, torch and coremltools for this
+(about 650 MB in `ml/.venv`, a few minutes). Later builds skip that step. The network is only used at build
+time. The app itself makes no network calls.
+
+**First run**
+1. Click the byaku icon in the menu bar, then **Set up face…**. Allow camera access when macOS asks, then look at the screen for 5 seconds.
+2. Turn on **Guard**. Pick a **Mode** (Whisper, Iris, Shade, Awaken) and whether you want the banner and sound.
+3. Optional: turn on **Open at login**. byaku then starts with your Mac, and Guard comes back on if it was on when you quit.
+
+**Update**
+
+```sh
+git pull && scripts/bundle.sh --install
+```
+
+Each local build has a new signature, so macOS may ask for camera access again. Open at login, your face and your settings are kept.
+
+**Uninstall** (in this order, so no stale login item is left behind)
+1. In the byaku menu: turn off **Open at login**, click **Delete face data**, then **Quit byaku**.
+2. Delete `~/Applications/Byaku.app`.
+3. Optional cleanup: `tccutil reset Camera dev.byaku.app` and `defaults delete dev.byaku.app`.
+
+**Troubleshooting**
+- *"Not guarding: camera access denied"*: use **Open camera settings…** in the menu and allow byaku.
+- *Open at login doesn't stick*: check System Settings → General → Login Items. byaku should be listed under "Open at Login".
+- *"face model missing"*: run `scripts/bundle.sh --install` again from the repo; the model is built into the app.
+
+## Development
 
 See [`AGENTS.md`](AGENTS.md) for the stack, commands, invariants and workflow.
 

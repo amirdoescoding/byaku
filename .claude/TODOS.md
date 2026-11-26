@@ -1,7 +1,6 @@
 # Backlog
 
 ## Next (pick one per PR)
-- [ ] Open at Login (SMAppService + menu item; mockups first)
 - [ ] Stable self-signed identity so rebuilds keep the camera grant; later Developer ID + notarization + GitHub Release
 - [ ] Verify the violet icon on a light menu bar (picks from the drawing appearance; spec wants `button.effectiveAppearance`)
 - [ ] Optional: `scripts/power.sh 3 120 "1" "--embed ml/models/sface.mlpackage"` battery row (rails already show ~+20–25 mW)
@@ -13,6 +12,12 @@
 - [ ] Power: `scripts/power.sh` row with Guard on + one face (whole system); scroll baseline without the overlay
 - [ ] Away alarm: loud SFX + "byaku spotted a threat!" voice + looping sound; needs a redistributable audio source (Epidemic's licence doesn't allow bundling)
 - [ ] Guard sound: replace `Submarine` once a licence-clean file exists
+
+## Done: PR8 Open at login + install docs (2026-11-26)
+- [x] "Open at login" (SMAppService.mainApp), Guard resumes at launch if it was on; `bundle.sh --install` + first-run model conversion
+- [x] README Install / first run / update / uninstall / troubleshooting
+- [x] Live (user): register on ad-hoc build, Login Items listing, survives reinstall, Guard resume
+- [ ] Leftover: real log-out/log-in check (only reinstall relaunches were tested)
 
 ## Done: PR7 app bundle (2026-11-26)
 - [x] `scripts/bundle.sh`, `app/Info.plist`, `app/AppIcon.icns`, `.app` launch path in `main.swift`; no library split needed

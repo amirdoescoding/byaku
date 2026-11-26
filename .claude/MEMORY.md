@@ -30,3 +30,6 @@
 - 2026-11-26 PR7 app bundle: `scripts/bundle.sh` → `build/Byaku.app`; launch with `open build/Byaku.app` (running the inner binary gives TCC
   to the terminal). Bundle id `dev.byaku.app` (never change). Settings (UserDefaults) moved to that domain, so they reset once; the owner
   embedding in Application Support carries over. App icon: render the SVG with AppKit (`NSImage(contentsOfFile:)`), not `qlmanage`, which paints a white background.
+- 2026-11-26 PR8 Open at login: SMAppService.mainApp works with ad-hoc signing and survives rebuilds at the same path. Guard state is
+  persisted (`guard` key) and resumed at launch: the user chose this (camera comes on at login only if Guard was left on).
+  `bundle.sh --install` quits the old copy by bundle id (osascript), never `pkill -x byaku` (would kill CLI runs). Build needs Apple silicon (torch 2.7.0 arm64 wheel only).
