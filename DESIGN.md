@@ -12,6 +12,8 @@ byaku's UI principles. The full token system is written by `impeccable-documente
    banner until the next separate alert.
 6. **Accessibility.** VoiceOver labels on every control. Never rely on color alone for state.
 7. **Privacy is visible.** Show when the camera is active, and never show a camera preview unless the user asks.
+   The one exception is the face scan, which the user starts: the mirrored, monochrome camera shows only until the
+   mask has formed over it, then the sweep wipes it away and it never returns. Nothing is recorded.
 8. **Brand.** The symbol, wordmark, palette and app icon live in `design/brand/` (see `philosophy.md` and `palette.md`).
    The menu bar uses `final/menubar-template.svg` as a template image. Violet means *seen*: in the app it marks only
    the symbol and the "someone is looking" state. Violet is never a gradient or a glow, with one exception: the Iris
@@ -50,3 +52,11 @@ byaku's UI principles. The full token system is written by `impeccable-documente
     - The tour never fakes the menu: the real NSMenu opens and a click-through coach bubble sits beside it.
     - Springs (CASpringAnimation, retargeting) carry every move. A flight is travel, so it may settle a little past 300 ms.
     - Sounds are synthesised (whoosh, brow flick). Reduce Motion: snaps and fades, no blink, no flight.
+13. **Face scan as shipped** (spec: `docs/designs/face-scan.md`, prototype + sheets: `design/scan/`).
+    - It's the same `ScanView` in onboarding and in the Set up face panel. The sequence: the camera alone, then the mask
+      fades on over it, then the sweep wipes the camera away. Then straight → left → right, each held 1 s.
+    - The mask is the user's face in geometry: a low-poly wireframe (ink) that follows the head and the expressions.
+      A held pose's third fills from the inside out and turns violet once captured (violet = *seen*). At the end, the
+      mask collapses into the mascot's ring.
+    - Exception to §10's 300 ms limit: the sweep (0.9 s), the camera hold and the collapse show progress, like the
+      countdown did. Reduce Motion: cross-fades, and the mask still tracks the head.

@@ -41,11 +41,11 @@ func fly(_ v: NSView, to origin: CGPoint, side: CGFloat, x: Onb.Spring = Onb.fly
 
 /// Onboarding sounds, computed like the siren (no audio file ships): a filtered-noise whoosh and a short eyebrow flick.
 enum Sfx {
-    enum Kind { case whooshIn, whooshOut, browUp, browDown }
+    enum Kind { case whooshIn, whooshOut, browUp, browDown, chime }
     static let rate = 44100
     private static var cache: [Kind: NSSound] = [:]
 
-    static func prewarm() { for k in [Kind.whooshIn, .whooshOut, .browUp, .browDown] where cache[k] == nil { cache[k] = NSSound(data: wav(samples(k))) } }
+    static func prewarm() { for k in [Kind.whooshIn, .whooshOut, .browUp, .browDown, .chime] where cache[k] == nil { cache[k] = NSSound(data: wav(samples(k))) } }
 
     static func play(_ k: Kind) {
         let s = cache[k] ?? NSSound(data: wav(samples(k)))
@@ -59,6 +59,7 @@ enum Sfx {
         case .whooshOut: whoosh(rising: false)
         case .browUp: flick(up: true)
         case .browDown: flick(up: false)
+        case .chime: chime()
         }
     }
 
@@ -90,6 +91,20 @@ enum Sfx {
             ph += 2 * .pi * (up ? 680 * (1 + 0.6 * u) : 560 * (1 - 0.3 * u)) / Double(rate)
             let env = min(t / 0.003, 1) * exp(-t * 55)
             return Float((sin(ph) + 0.25 * sin(2 * ph)) / 1.25 * env) * Onb.flickLevel
+        }
+    }
+
+    /// Face saved: two soft sine notes, the second a little later and higher.
+    static func chime() -> [Float] {
+        let c = Tokens.Scan.chime, n = Int((c.length + c.gap) * Double(rate))
+        return (0..<n).map { i in
+            let t = Double(i) / Double(rate)
+            func note(_ f: Double, _ at: Double) -> Double {
+                guard t >= at else { return 0 }
+                let u = t - at
+                return sin(2 * .pi * f * u) * min(u / 0.006, 1) * exp(-u * 6)
+            }
+            return Float((note(c.low, 0) + 0.9 * note(c.high, c.gap)) / 1.9) * c.level * 2
         }
     }
 
@@ -316,7 +331,6 @@ final class OnboardingFlow: NSObject {
     private let window = OnboardingWindow()
     private var mascot = MascotView(side: 112)  // replaced by an 84 pt one for the video step
     private let titleLabel = NSTextField(labelWithString: ""), bodyLabel = NSTextField(wrappingLabelWithString: "")
-    private let number = NSTextField(labelWithString: "")
     private var buttons: [PanelButton] = []
     private var close: PanelButton!
     private var run = 0  // bumps on every step change so stale timed beats drop
@@ -332,9 +346,7 @@ final class OnboardingFlow: NSObject {
         titleLabel.font = .systemFont(ofSize: 17, weight: .semibold); titleLabel.alignment = .center; titleLabel.textColor = Tokens.ink
         bodyLabel.font = .systemFont(ofSize: 13); bodyLabel.alignment = .center; bodyLabel.textColor = Tokens.mute
         bodyLabel.maximumNumberOfLines = 2
-        number.font = .monospacedDigitSystemFont(ofSize: 22, weight: .semibold); number.alignment = .center; number.textColor = Tokens.ink
-        number.setAccessibilityElement(false)
-        [mascot, titleLabel, bodyLabel, number, close].forEach(v.addSubview)
+        [mascot, titleLabel, bodyLabel, close].forEach(v.addSubview)
         window.onEsc = { [weak self] in self?.finish() }
         window.setAccessibilityTitle("Welcome to byaku")
     }
@@ -359,7 +371,6 @@ final class OnboardingFlow: NSObject {
         resize(Self.card)
         let w = Self.card.width, h = Self.card.height
         resetPlacement(mascot, NSRect(x: (w - 112) / 2, y: h - 48 - 112, width: 112, height: 112))
-        number.frame = NSRect(x: 0, y: 164, width: w, height: 28)
         titleLabel.frame = NSRect(x: 40, y: 128, width: w - 80, height: 24)
         bodyLabel.frame = NSRect(x: 48, y: 84, width: w - 96, height: 40)
         close.setFrameOrigin(NSPoint(x: w - 12 - 24, y: h - 12 - 24))
@@ -410,7 +421,6 @@ final class OnboardingFlow: NSObject {
 
     private func welcome() {
         mascot.set(MascotView.rest); mascot.idle(true)
-        number.isHidden = true
         show("byaku watches who's looking.", "", [("Start", .primary, { [weak self] () -> Void in self?.hasOwner == true ? self?.tourIntro() : self?.faceIntro() })],
              centered: true)
         titleLabel.frame.origin.y = 120
@@ -419,45 +429,56 @@ final class OnboardingFlow: NSObject {
     // MARK: 2 face (drives AppController's enrollment; same words as the Set up face panel)
 
     private func faceIntro() {
-        scanning = false; number.isHidden = true
+        scanning = false; endScanView()
         titleLabel.frame.origin.y = 128
         mascot.set(MascotView.rest)
-        show("First, your face", "byaku learns what you look like, so it only flags other people. It takes 5 seconds.",
+        show("First, your face", "Look straight, then turn left and right. Nothing is saved except a face print.",
              [("Skip", .secondary, { [weak self] () -> Void in self?.tourIntro() }), ("Scan my face", .primary, { [weak self] () -> Void in self?.scan() })])
     }
 
-    private func scan() { scanning = true; onScan() }
+    /// The guided scan (ScanView) while scanning; the window's own mascot and words are hidden under it.
+    private(set) var scanView: ScanView?
+
+    private func scan() {
+        scanning = true
+        if scanView == nil {
+            let v = ScanView(frame: window.contentView!.bounds, compact: false)
+            window.contentView!.addSubview(v, positioned: .below, relativeTo: close)
+            scanView = v
+        }
+        mascot.idle(false)
+        [mascot, titleLabel, bodyLabel].forEach { $0.isHidden = true }
+        onScan()
+    }
+
+    private func endScanView() {
+        scanView?.stop(); scanView?.removeFromSuperview(); scanView = nil
+        mascot.isHidden = false
+    }
 
     private func skipScan() { if scanning { scanning = false; onStopScan() }; tourIntro() }
 
-    /// AppController's enrollment phases while the window hosts the scan.
+    /// AppController's enrollment phases while the window hosts the scan; the ScanView shows the words.
     func showFace(_ p: EnrollPanel.Phase) {
-        let (title, body) = EnrollPanel.copy(p)
+        guard let s = scanView else { return }
+        run += 1; leaving = false
         let skip = ("Skip", PanelButton.Role.secondary, { [weak self] () -> Void in self?.skipScan() })
-        number.isHidden = true
         switch p {
         case .starting:
-            mascot.idle(false); mascot.set(MascotView.focus, Onb.focus)
-            show(title, body, [skip], announce: false)
-        case .counting(let r):
-            number.stringValue = "\(r)"; number.isHidden = false
-            if r == 5 { show(title, body, [skip]) } else {
-                NSAccessibility.post(element: window, notification: .announcementRequested,
-                                     userInfo: [.announcement: "\(r)", .priority: NSAccessibilityPriorityLevel.high.rawValue])
-            }
+            s.start()
+            setButtons([skip], centered: false, y: 24)
         case .saved:
             scanning = false
-            show(title, body, [("Next", .primary, { [weak self] () -> Void in self?.tourIntro() })])
-            mascot.set(MascotView.raise, Onb.raise); Sfx.play(.browUp)
-            after(Onb.smileHold) { [weak self] in self?.mascot.set(MascotView.rest); self?.mascot.idle(true) }
+            s.saved()
+            setButtons([("Next", .primary, { [weak self] () -> Void in self?.tourIntro() })], centered: false, y: 24)
         case .cameraDenied:
             scanning = false
-            show(title, body, [skip, ("Open camera settings…", .primary, { [weak self] () -> Void in self?.onOpenSettings() })])
-            mascot.set(MascotView.frown, Onb.frown); Sfx.play(.browDown)
+            s.fail(p)
+            setButtons([skip, ("Open camera settings…", .primary, { [weak self] () -> Void in self?.onOpenSettings() })], centered: false, y: 24)
         case .noFace, .severalFaces, .failed:
             scanning = false
-            show(title, body, [skip, ("Try again", .primary, { [weak self] () -> Void in self?.scan() })])
-            mascot.set(MascotView.frown, Onb.frown); Sfx.play(.browDown)
+            s.fail(p)
+            setButtons([skip, ("Try again", .primary, { [weak self] () -> Void in self?.scan() })], centered: false, y: 24)
         }
     }
 
@@ -469,7 +490,8 @@ final class OnboardingFlow: NSObject {
     private var overlay: CoachOverlay?
 
     private func tourIntro() {
-        number.isHidden = true; mascot.idle(true)
+        endScanView()
+        mascot.idle(true)
         titleLabel.frame.origin.y = 128
         show("Here's the menu.", "It lives up here, next to the clock.",
              [("Skip", .secondary, { [weak self] () -> Void in self?.skipTour() }), ("Show me", .primary, { [weak self] () -> Void in self?.launchTour() })])
@@ -549,7 +571,7 @@ final class OnboardingFlow: NSObject {
         run += 1
         guard player == nil, let url = Bundle.main.url(forResource: "founder", withExtension: "mp4") else { return false }
         mascot.idle(false)
-        [titleLabel, bodyLabel, number].forEach { $0.isHidden = true }
+        [titleLabel, bodyLabel].forEach { $0.isHidden = true }
         buttons.forEach { $0.removeFromSuperview() }; buttons = []
         resize(Self.founderSize)
         let v = window.contentView!, r = Self.video
@@ -674,6 +696,7 @@ final class OnboardingFlow: NSObject {
     func finish() {
         run += 1
         if scanning { scanning = false; onStopScan() }
+        endScanView()
         mascot.idle(false)
         player?.pause(); playerView?.player = nil; player = nil
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }

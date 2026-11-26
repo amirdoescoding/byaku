@@ -22,8 +22,12 @@
 
 - [x] Step-by-step onboarding: real-menu tour with a coach bubble + mascot (PR12 `feat/onboarding`)
 - [x] Closing video after setup: founder clip with lockup intro/outro (bundled, offline)
-- [ ] **PR B: guided face scan**: circular live preview (never saved), progress ring, straight/left/right prompts, template
-  averaged across poses (also the yawed-match gap). Pre-register the margin bar first. User OK'd the preview (2026-11-26)
+- [x] **PR B1: guided face scan** (`feat/face-scan`): live mesh mask, camera until the sweep, straight/left/right holds
+- [x] PR B1 hardware QA: the user checked the scan on their Mac after the deadlock fix ("everything is good", 2026-11-27)
+- [ ] Owner match after a rescan with a second person or photo (`byaku match`): the template now comes from ~15 frames in 1 s, not ~25 in 5 s
+- [ ] **PR B2: multi-pose template**: pre-register the margin bar (owner 0° and ±25° vs strangers), compare straight-only vs
+  multi-pose mean / per-pose max, verify live with a second person, then let side-hold prints into `ownerTemplate`
+- [ ] Optional scan delight: the mascot copies the user's brow raise / blink (Vision brow + eye points are already tracked)
 - [ ] Onboarding: VoiceOver pass on hardware (bubble announcements while the menu is open; video label)
 - [ ] Onboarding: unvisited-row dots were cut (native NSMenu can't draw in its gutter); revisit only if the count isn't enough
 - [ ] Install `impeccable-finish-reviewer` / `impeccable-documenter` agents (CLAUDE.md names them; they aren't installed)

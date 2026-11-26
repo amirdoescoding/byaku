@@ -69,6 +69,40 @@ enum Tokens {
         static let recolor = 0.3, windowFade = 0.15, idleAfter = 1.2
     }
 
+    /// Guided face scan (docs/designs/face-scan.md, prototype design/scan/prototype.html; values ported 1:1). Angles in degrees.
+    enum Scan {
+        /// Camera rate while scanning (the mask tracks at this rate; embeddings run on every frame, kept only for straight holds).
+        static let fps = 15.0
+        /// A pose is captured after `hold` s inside its band. Straight: |yaw| < straight. Sides: yaw past sideMin, no ceiling.
+        static let hold = 1.0, straight = 8.0, sideMin = 12.0
+        /// No face (or 2+) this long → fail. Out of the side band this long → "A little further".
+        static let pauseFail = 10.0, nudgeAfter = 4.0
+        /// Straight frames that must count for a face print (embeddings at 15 fps over a 1 s hold).
+        static let minFrames = 10
+        /// One-Euro filter on angles and landmark points.
+        static let minCutoff = 1.2, beta = 0.04
+        /// Landmark pull: vertices on a Vision point sit on it (expressions); others blend residuals within sigma cm.
+        static let pull = 1.0, sigma = 1.4
+        /// How far the mask follows the face across the frame (0 = pinned to the centre).
+        static let follow = 0.35
+        /// Fill regions: each triangle belongs to the pose that turns it to the camera most (gain at ±regionYaw vs straight).
+        static let regionMargin = 0.08, regionYaw = 22.0
+        /// Mask lines and fills (alpha on ink / accent). Lost face: the mask dims to lostAlpha with this time constant.
+        static let lineAlpha: CGFloat = 0.22, seenAlpha: CGFloat = 0.75, fillAlpha: CGFloat = 0.10, partial: CGFloat = 0.55
+        /// Silhouette triangles (nearly edge-on) draw at dimLine × lineAlpha; the sweep line is accent at sweepAlpha.
+        static let dimLine: CGFloat = 0.4, sweepAlpha: CGFloat = 0.9
+        static let lostAlpha: CGFloat = 0.3, lostFade = 0.12
+        /// Intro: the camera alone (videoHold), the mask fades on over it (maskIn), the sweep wipes the camera away (sweep).
+        static let videoAlpha: CGFloat = 0.85, videoIn = 0.25, videoHold = 1.0, maskIn = 0.5, sweep = 0.9, sweepLine: CGFloat = 1.5
+        /// Finish: hold the lit mask, then it collapses into the mascot's ring; "Face saved" arrives at savedAt.
+        static let collapseHold = 0.3, stagger = 0.12, savedAt = 0.28, restAfter = 1.3, captureCue = 0.45
+        static let collapse = Onboarding.Spring(stiffness: 260, damping: 28), lockOn = Onboarding.Spring(stiffness: 600, damping: 49)
+        /// Render tick while the scan view animates. Reduce Motion: cross-fades this long instead of sweep and collapse.
+        static let tick = 1.0 / 60, fade = 0.2
+        /// Done chime: two sine notes (Hz), the second this much later; peak level 0…1; length.
+        static let chime = (low: 784.0, high: 1175.0, gap: 0.11, level: Float(0.09), length: 0.7)
+    }
+
     enum Motion {
         static let enter = 0.20, exit = 0.15, hover = 0.12, press = 0.10, release = 0.16, check = 0.24
         static let edgeIn = 0.28, spinTurn = 0.6, countStep = 1.0, autoClose = 3.0, startTimeout = 4.0
