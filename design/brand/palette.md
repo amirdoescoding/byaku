@@ -6,7 +6,8 @@ can't be seen on paper (1.59:1).
 - **Pale iris `#C8BFEF`**: the accent on ink (dark). It is the Byakugan colour.
 - **Dusk violet `#6A5DB8`**: the accent on paper (light). Pale iris, darkened until it reads.
 
-The accent appears once per composition and is never a gradient or a glow. In the app, violet means *seen*:
+The accent appears once per composition and is never a gradient or a glow, with one exception: the Guard "Iris"
+overlay, whose violet mist fades in from the screen edges at the "seen" moment (DESIGN.md §8). In the app, violet means *seen*:
 it is reserved for the symbol and for the "someone is looking" state. It is never decoration. Native macOS UI still
 uses system colours (DESIGN.md §1). These tokens are for the brand, the README, the site and custom surfaces
 such as the banner.

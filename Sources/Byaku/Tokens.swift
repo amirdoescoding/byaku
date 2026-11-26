@@ -11,7 +11,7 @@ enum Tokens {
     /// Violet means *seen*: the eye is open (guarding, alert) and keyboard focus. Never decoration.
     static let accent = dynamic(light: 0x6A5DB8, dark: 0xC8BFEF)
 
-    /// Guard overlay (docs/designs/guard-actions.md §4). Iris is the one sanctioned violet glow: an `accent` shadow from every edge.
+    /// Guard overlay (docs/designs/guard-actions.md §4). Iris is the one sanctioned violet gradient: `accent` strips fading in from every edge.
     enum Overlay {
         static let dimAlpha: CGFloat = 0.40, edgeAlpha: Float = 0.70
         /// Iris mist depth = × screen width in pt (96 pt on a 1920 pt display, 72 on a 1440 pt laptop).

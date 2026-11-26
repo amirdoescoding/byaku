@@ -1,6 +1,6 @@
 # Architecture
 
-Status: **menu-bar app skeleton exists** (`byaku app`: Guard on/off, face setup, delete; UI.swift/App.swift/Tokens.swift/Owner.swift). Before that, a **v0 spike CLI** (`Sources/Byaku`: `detect [--embed]`, `embed`, `lock-test`; `ml/`: SFace conversion + live eval). The app pipeline below is still planned.
+Status: **menu-bar app with Guard actions** (`byaku app`: Guard, face setup, delete, Mode ladder, banner, Iris mist/dim; UI.swift/App.swift/Alert.swift/Tokens.swift/Owner.swift). Before that, a **v0 spike CLI** (`Sources/Byaku`: `detect [--embed]`, `embed`, `lock-test`; `ml/`: SFace conversion + live eval). The app pipeline below is still planned.
 
 ## Pipeline
 
@@ -36,8 +36,10 @@ Actions
 
 ## Actions
 
-- **Banner**: a non-activating panel or notification.
-- **Dim**: a borderless, click-through `NSWindow` at screen-saver level on every display. Opacity is configurable.
+- **Banner** (shipped): `BannerPanel`, a non-activating 320×64 panel under the status item at `.statusBar + 1`, never key.
+- **Iris / dim** (shipped): `WatchOverlay`, one click-through borderless window per screen at `.statusBar`, below the menu
+  bar; gradient-strip mist and/or 40% black. Chosen per alert by the Mode ladder (Whisper/Iris/Shade/Awaken).
+- **Guard sound** (shipped, opt-in): one `NSSound("Submarine")` per alert.
 - **Sound**: `NSSound` / `AVAudioPlayer` at full volume.
 - **Lock**: an **open risk**, to be settled in the spike. `SACLockScreenImmediate` is a private API (it may break or be
   rejected). `pmset displaysleepnow` only locks if "require password immediately" is on. Pick a method, verify that it
@@ -91,7 +93,11 @@ Most of the savings come from the pipeline, not the language.
 | 2026-11-25 | Vision → 5 points: pupils, nose-region centroid, outer-lip extremes along the eye axis | Picked by pixel error to YuNet (err/IOD), never by embedding cosine |
 | 2026-11-25 | Swift owner-match threshold provisional 0.300 (Python path: 0.437) | Swift live bar v2 PASS, margin +0.228; see "Swift alignment" below |
 | 2026-11-25 | Menu-bar app = `byaku app` subcommand in the one target (no library split yet) | No `public` churn; split when the `.app` bundle needs a no-args launch |
-| 2026-11-25 | Guard alert rule v0: ≥2 faces → alert; 1 face below 0.300 → alert; unembeddable face → stay guarding (fail open) | Only the largest face is embedded; per-face embedding comes with the policy PR |
+| 2026-11-25 | ~~Guard alert rule v0: ≥2 faces → alert~~ (superseded 2026-11-26) | Only the largest face was embedded |
+| 2026-11-26 | Guard alert rule v1: gaze gate (\|yaw\| ≤ 30°, \|pitch\| ≤ 25°, provisional) **before** landmarks/SFace; embed every facing face (cap 4); looker = below 0.300, or unembeddable while 2+ facing; a lone unembeddable face fails open | Turned-away faces cost nothing and the owner's own turned head can't score as a stranger. `detect --embed`/`match` keep the largest-face path (pre-registered evals) |
+| 2026-11-26 | Debounce: fire on 2 of the last 3 frames, clear after 3 clean (~2 s / ~3 s at 1 fps) | One stray frame never fires; user choice "balanced" |
+| 2026-11-26 | Iris mist = 4 `CAGradientLayer` strips (5% of screen width), not a blurred shadow | Live powermetrics: blurred shadow +13 mW held and >100 mW while scrolling; rasterising it was fragile; strips measured 2–4 mW held vs 1–5 mW baseline |
+| 2026-11-26 | Window levels: overlay `.statusBar`, banner `.statusBar + 1`, NSMenu above | `.screenSaver` would have covered the banner and "Lift for now" |
 | 2026-11-25 | Owner data = `~/Library/Application Support/byaku/owner.json`, 128 floats, overwritten on re-setup, one-click delete | Invariant 5; no image is ever stored |
 | 2026-11-25 | Camera/model errors throw (CLI exits via `must`); a Camera is single-use, `stop()` ends it | The app must show errors, never exit; no orphaned camera after a cancelled start |
 | 2026-11-25 | Vision feature-print baseline dropped | It was expected to lose, and a fair test needs a Swift live loop; SFace already passes |
@@ -164,10 +170,22 @@ PR3 alignment (Vision landmarks on the rev-3 rect + 112×112 CPU warp, 32BGRA ca
 Placement (`MLComputePlan`, CPU+ANE): 58 ops on the ANE and 4 on the CPU (the linear head). Latency: 1.25 ms (CPU+ANE),
 1.5 ms (`.all`), 3.1 ms (CPU only). Embedding at 1 Hz costs ~+20–25 mW, which is below battery-measurement noise.
 
+## Guard overlay GPU (powermetrics `gpu_power`, M1 Air, 2 displays, 2026-11-26)
+
+| Version | Held alert, nothing moving | While scrolling under it |
+|---|---|---|
+| no alert (baseline) | 1–5 mW | not measured separately |
+| blurred-shadow mist | 14–20 mW (+13) | 50–136 mW |
+| + rasterised after entry | 6–17 mW (unlabelled run) | 30–76 mW |
+| gradient strips (shipped) | 2–4 mW | 330–660 mW, scrolling itself not separated |
+
+A browser video under an Awaken alert hit 1–2 W, which is video decode/compositing, not attributed to byaku. Still open: a
+`scripts/power.sh` row with Guard on and one face (whole-system), and a scroll baseline without the overlay.
+
 ## Open risks
 - **Camera permission (TCC)** needs a `.app` bundle with `NSCameraUsageDescription`. Only Command Line Tools are
   installed, not Xcode. SwiftPM builds work, but bundling and signing may need Xcode or a bundling script.
-- **Gaze accuracy.** Yaw/pitch thresholds alone will false-positive on people looking near the screen. EyesOff
+- **Gaze accuracy.** Yaw/pitch thresholds alone will false-positive on people looking near the screen. Vision rev-3 yaw/pitch granularity is not verified live yet (continuous vs binned). EyesOff
   trained a custom ~300k-parameter classifier on ~80k images.
 
 ## Prior art

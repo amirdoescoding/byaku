@@ -20,3 +20,10 @@
   Colours/timings live only in Tokens.swift (CI: scripts/check-ui.sh). UI work: canvas mockups → user OK → code → ui-designer + frontend-developer review.
 - AppKit gotchas: NSMenu `autoenablesItems` must be false or `isEnabled` is ignored. Manual CAShapeLayer sublayers animate
   implicitly (wrap in CATransaction.setDisableActions). Camera.start can finish after a cancel, so stop any camera with no owner.
+- 2026-11-26 PR6 Guard actions: Mode ladder Whisper/Iris/Shade/Awaken (default Iris + banner), banner rotates one line per alert,
+  "Lift for now" ⌘L. The user chose a soft violet mist over a crisp rim (and over the brand's no-glow rule): it ships as gradient
+  strips because a full-screen blurred shadow costs GPU on every recomposite. Measure overlay power with labelled phases
+  (idle / held / scrolling) and no video playing; the user's 1–2 W reading was a browser video.
+- No Screen Recording permission for VS Code: `screencapture` returns wallpaper only. Verify windows via CGWindowListCopyWindowInfo instead;
+  NSStatusItem frames are only real under `NSApp.run` (RunLoop.main.run in a test gives (0,-24)).
+- Guard sound: Epidemic Sound files can't be bundled in this MIT repo; use macOS system sounds or self-made audio.

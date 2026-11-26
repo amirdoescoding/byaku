@@ -77,7 +77,7 @@ It never shows a camera image or the looker's position.
 | 2 | dim: black 40% (provisional) |
 | 3 | dim + edges |
 
-**Edge style: A, soft violet shadow** (the user's choice, 2026-11-26). It's four `accent` gradient strips fading inward from every edge, 5% of the screen width deep (96 pt on a 1920 pt display, 72 on a 1440 pt laptop); mist only, no border, no blur or shadow (power)
+**Edge style: A, soft violet mist** (the user's choice, 2026-11-26). It's four `accent` gradient strips fading inward from every edge, 5% of the screen width deep (96 pt on a 1920 pt display, 72 on a 1440 pt laptop); mist only, no border, no blur or shadow (power)
 at 70% alpha, coming in from every edge, like an eye activating.
 - This is a **deliberate exception** to palette.md ("violet is never a gradient or a glow"). The overlay is the one
   place violet may glow, because it *is* the "seen" moment. palette.md and DESIGN.md record the exception.
@@ -105,12 +105,12 @@ All of this uses the existing tokens and ease-out only. Prototype: `design/guard
 
 ## 7. Components and tokens
 
-- `BannerPanel(anchor:)`: reuses EnrollPanel's present/dismiss-from-anchor code (extract a shared helper only if it's a straight lift).
-- `CloseButton`: a variant of `PanelButton` (role `.icon`) so hover, press and focus stay in one place.
+- `BannerPanel`: subclass of `AnchoredPanel` (EnrollPanel's present/dismiss-from-anchor code, lifted into a shared base).
+- `CloseButton`: a variant of `PanelButton` (role `.close`, clicks through on first press) so hover, press and focus stay in one place.
 - `WatchOverlay(mode: Mode)`: `enum Mode: Int { case whisper, iris, shade, awaken }`, one window per screen.
 - New tokens go in `Tokens.swift` only:
   - `dimAlpha 0.40`
-  - `edgeBlur 90`
+  - `edgeDepth 0.05` (× screen width), `mist` stops (edge → inner side)
   - `edgeAlpha 0.70` (on `accent`)
   - `Motion.edgeIn 0.28`
 
