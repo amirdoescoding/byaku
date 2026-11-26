@@ -508,7 +508,7 @@ final class AppController: NSObject, NSMenuDelegate {
             DispatchQueue.main.async {
                 guard let self, run == self.enrollRun, let v = self.scanView else { return }
                 self.scanStarted = true
-                if v.frame(f, dt: dt), let print { self.scanPrints.append(print) }
+                if v.frame(f, dt: dt, printed: print != nil), let print { self.scanPrints.append(print) }
             }
         }
         start(cam) { [weak self] error in

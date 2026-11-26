@@ -222,3 +222,14 @@ private func hold(_ yaw: Double, _ seconds: Double) -> [(Int, Double)] { Array(r
     }
     #expect(straightYaws.count >= 15 && straightYaws.allSatisfy { $0 == 0 })  // the hold's frames, never a turned one
 }
+
+@Test func scanPoseStraightWaitsForEnoughFacePrints() {
+    var p = ScanPose()  // a slow camera (7 fps): the hold is long done, but straight waits for the 10th print
+    var captured = 0
+    for i in 1...12 {
+        if p.frame(faces: 1, yaw: 0, dt: 1.0 / 7, printed: true).contains(.capture(.straight)) { captured = i }
+    }
+    #expect(captured == Tokens.Scan.minFrames)
+    var q = ScanPose()  // frames without a print never complete straight
+    #expect(!(0..<40).flatMap { _ in q.frame(faces: 1, yaw: 0, dt: 1.0 / 15, printed: false) }.contains(.capture(.straight)))
+}

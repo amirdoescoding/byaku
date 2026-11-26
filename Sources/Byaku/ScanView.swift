@@ -244,11 +244,11 @@ final class ScanView: NSView {
         let ink = { (a: CGFloat) in cg(Tokens.ink.withAlphaComponent(a), in: self) }
         let acc = { (a: CGFloat) in cg(Tokens.accent.withAlphaComponent(a), in: self) }
         CATransaction.begin(); CATransaction.setDisableActions(true)
-        wire.strokeColor = ink(Scn.lineAlpha); wireDim.strokeColor = ink(Scn.lineAlpha * 0.4)
+        wire.strokeColor = ink(Scn.lineAlpha); wireDim.strokeColor = ink(Scn.lineAlpha * Scn.dimLine)
         wireSeen.strokeColor = acc(Scn.lineAlpha + (Scn.seenAlpha - Scn.lineAlpha) * Scn.partial)
         fillSeen.fillColor = acc(Scn.fillAlpha * Scn.partial)
         wireCap.strokeColor = acc(Scn.seenAlpha); fillCap.fillColor = acc(Scn.fillAlpha)
-        sweepLine.strokeColor = acc(0.9)
+        sweepLine.strokeColor = acc(Scn.sweepAlpha)
         CATransaction.commit()
     }
 
@@ -314,7 +314,7 @@ final class ScanView: NSView {
     // MARK: frames
 
     /// One camera frame. Returns true when this frame feeds the face print (a straight hold, before its capture).
-    func frame(_ f: ScanFrame, dt rawDt: Double) -> Bool {
+    func frame(_ f: ScanFrame, dt rawDt: Double, printed: Bool) -> Bool {
         guard ![.done, .failed].contains(phase) else { return false }
         let dt = min(max(rawDt, 1 / Scn.fps / 2), 0.2)
         if f.size != .zero { if lastSize == nil { videoAt = now }; lastSize = f.size }  // the camera fades in with the first image
@@ -334,14 +334,14 @@ final class ScanView: NSView {
         case .find:
             faceSince = f.faces == 1 && tracked != nil ? (faceSince ?? now) : nil
             findFor = faceSince == nil ? findFor + dt : 0
-            if findFor >= Scn.pauseFail { return fail(.noFace, report: true) }
+            if findFor >= Scn.pauseFail { return fail(f.faces >= 2 ? .severalFaces : .noFace, report: true) }
             if let s = faceSince, now - s >= (preview == nil ? 0 : Scn.videoHold) { phase = .mask; maskAt = now }
         case .scan:
             let wasStraight = pose.step == .straight
-            let ev = pose.frame(faces: f.faces, yaw: yaw, dt: dt)
+            let ev = pose.frame(faces: f.faces, yaw: yaw, dt: dt, printed: printed)
             feeds = wasStraight && pose.counting
             if pose.counting, let step = pose.step {  // the held pose's region wipes outward (a capture frame lights its region below)
-                let p = min(1, pose.hold / Scn.hold)
+                let p = pose.progress
                 for t in seen.indices where ScanGeometry.region[t] == step.rawValue && ScanGeometry.order[t] <= p { seen[t] = true }
             }
             for e in ev { handle(e) }

@@ -36,8 +36,8 @@ rotates about its outer base and scales about its own centre.
 1. **Welcome**: the mascot (blinking), "byaku watches who's looking.", and [Start].
 2. **Face** (skipped when a face is already saved):
    - An intro, "First, your face", with [Skip] [Scan my face].
-   - Then AppController's own 5 s enrollment, with `showEnroll` routing its phases to the window and the same words as the
-     Set up face panel (`EnrollPanel.copy`). The countdown digit sits under the mascot. No camera preview (that is PR B).
+   - Then the guided scan (`ScanView`, the same one as the Set up face panel; spec: `docs/designs/face-scan.md`). The
+     window's mascot and words hide under it; `showEnroll` routes AppController's outcomes to the window.
    - Focus while counting, raise + flick when saved, frown + flick on failure. A screen lock mid-scan returns to the intro.
 3. **Tour**:
    - "Here's the menu." [Skip] [Show me]. The mascot looks up-right. The full-screen `CoachOverlay` (level `.popUpMenu + 1`,
@@ -76,5 +76,5 @@ iPhone GPS and extra tracks), `scale=1920:-2,fps=30`, `hevc_videotoolbox -q:v 55
 
 ## Power
 
-The camera runs only during the scan step (5 fps × 5 s, as before). After onboarding: no timers, no layers on screen, the
+The camera runs only during the scan step (15 fps for the ~10 s scan; see face-scan.md). After onboarding: no timers, no layers on screen, the
 player is released and the overlay is ordered out. Guard's power is unchanged.

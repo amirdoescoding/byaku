@@ -64,7 +64,9 @@ struct ScanPose {
     private(set) var hold = 0.0, paused: Bool? = nil, failed = false  // paused: true = lost, false = several faces
     /// This frame is inside the current band (feeds the fill; on .straight it also feeds the face print).
     private(set) var counting = false
-    private var pausedFor = 0.0, outOfBand = 0.0
+    private var pausedFor = 0.0, outOfBand = 0.0, prints = 0
+    /// 0…1 through the current hold. Straight also waits for minFrames face prints (a slow camera holds longer, never fails late).
+    var progress: Double { min(hold / S.hold, step == .straight ? Double(prints) / Double(S.minFrames) : 1) }
 
     static func inBand(_ s: Step, yaw: Double) -> Bool {
         switch s {
@@ -74,7 +76,8 @@ struct ScanPose {
         }
     }
 
-    mutating func frame(faces: Int, yaw: Double, dt: Double) -> [Event] {
+    /// `printed`: this frame produced a face print (exactly one face, embedded). Only straight-step prints are counted.
+    mutating func frame(faces: Int, yaw: Double, dt: Double, printed: Bool = true) -> [Event] {
         counting = false
         guard let s = step, !failed else { return [] }
         var ev: [Event] = []
@@ -92,7 +95,8 @@ struct ScanPose {
             return ev
         }
         outOfBand = 0; counting = true; hold += dt
-        if hold >= S.hold {
+        if s == .straight, printed { prints += 1 }
+        if progress >= 1 {
             ev.append(.capture(s)); hold = 0
             step = Step(rawValue: s.rawValue + 1)
             if step == nil { ev.append(.done) }

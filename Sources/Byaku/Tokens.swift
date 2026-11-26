@@ -89,6 +89,8 @@ enum Tokens {
         static let regionMargin = 0.08, regionYaw = 22.0
         /// Mask lines and fills (alpha on ink / accent). Lost face: the mask dims to lostAlpha with this time constant.
         static let lineAlpha: CGFloat = 0.22, seenAlpha: CGFloat = 0.75, fillAlpha: CGFloat = 0.10, partial: CGFloat = 0.55
+        /// Silhouette triangles (nearly edge-on) draw at dimLine × lineAlpha; the sweep line is accent at sweepAlpha.
+        static let dimLine: CGFloat = 0.4, sweepAlpha: CGFloat = 0.9
         static let lostAlpha: CGFloat = 0.3, lostFade = 0.12
         /// Intro: the camera alone (videoHold), the mask fades on over it (maskIn), the sweep wipes the camera away (sweep).
         static let videoAlpha: CGFloat = 0.85, videoIn = 0.25, videoHold = 1.0, maskIn = 0.5, sweep = 0.9, sweepLine: CGFloat = 1.5
