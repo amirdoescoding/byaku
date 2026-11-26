@@ -119,7 +119,7 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     /// nil when the device has no such control (e.g. HDMI without volume).
-    private func get<T>(_ dev: AudioObjectID, _ sel: AudioObjectPropertySelector) -> T? {
+    private func get<T: BitwiseCopyable>(_ dev: AudioObjectID, _ sel: AudioObjectPropertySelector) -> T? {
         var a = address(sel)
         guard AudioObjectHasProperty(dev, &a) else { return nil }
         var size = UInt32(MemoryLayout<T>.size)
@@ -127,7 +127,7 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate {
         return AudioObjectGetPropertyData(dev, &a, 0, nil, &size, p) == noErr ? p.pointee : nil
     }
 
-    private func set<T>(_ dev: AudioObjectID, _ sel: AudioObjectPropertySelector, _ v: T) {
+    private func set<T: BitwiseCopyable>(_ dev: AudioObjectID, _ sel: AudioObjectPropertySelector, _ v: T) {
         var a = address(sel), v = v
         guard AudioObjectHasProperty(dev, &a) else { return }
         AudioObjectSetPropertyData(dev, &a, 0, nil, UInt32(MemoryLayout<T>.size), &v)
