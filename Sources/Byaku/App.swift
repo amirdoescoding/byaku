@@ -135,8 +135,7 @@ final class AppController: NSObject, NSMenuDelegate {
         let vol = NSMenuItem()
         let slider = VolumeSlider(value: alarmVolume)
         slider.onCommit = { [weak self] v in
-            self?.defaults.set(v, forKey: Key.alarmVolume)
-            self?.alarm.preview(level: v, seconds: Tokens.Away.blipSeconds)  // like the macOS volume click
+            self?.defaults.set(v, forKey: Key.alarmVolume)  // no blip on release: Play test is the only preview
         }
         vol.view = slider
         menu.addItem(vol)

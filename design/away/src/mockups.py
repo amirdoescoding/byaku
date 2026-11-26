@@ -133,15 +133,70 @@ def volume_sheet(t):
              f'<span style="color:{k["mute"]}">same, plus a 3 s preview at the chosen level so you hear what a looker hears</span></figcaption></figure>')
     return f'<div class="panel" style="background:{k["bg"]}"><p class="cap" style="color:{k["mute"]}">{t} · alarm volume</p><div class="grid2">{cells}</div></div>'
 
+# ---- PR11: alarm sound picker + recorded message (docs/designs/away-mode.md §Sound, §Message) ------------------
+SOUNDS = ["Basso", "Blow", "Bottle", "Frog", "Funk", "Glass", "Hero", "Morse", "Ping", "Pop", "Purr", "Sosumi", "Submarine", "Tink"]
+
+def sound_menu(t, msg_sub, open_sub, armed=False):
+    k = TH[t]
+    def q(label, key="", on=False, en=True, sub=False, hl=False, small=None):
+        col = "#fff" if hl else (k["ink"] if en else k["dis"])
+        lb = f'{label}<small style="color:{"rgba(255,255,255,.8)" if hl else k["mute"]}">{small}</small>' if small else label
+        return (f'<div class="mi{" hl" if hl else ""}{" two" if small else ""}" style="color:{col}"><span class="ck">{"✓" if on else ""}</span>'
+                f'<span class="lb">{lb}</span><span class="kc" style="color:{"#fff" if hl else k["mute"]}">{"›" if sub else key}</span></div>')
+    sep = f'<div class="sepr" style="background:{k["sep"]}"></div>'
+    vol = (f'<div style="padding:6px 13px 8px 23px"><div style="font:600 13px/1 -apple-system,system-ui,sans-serif;color:{k["ink"]};margin-bottom:8px">Alarm volume</div>'
+           f'{slider(t, 1.0)}</div>')
+    status = "Away. Locks if anyone looks" if armed else "Guard is off"
+    main = (f'<div class="mi" style="color:{k["dis"]}"><span class="ck"></span><span class="lb">{status}</span></div>' + sep
+            + q("Guard", "⌘G", en=not armed) + q("Away", "⌘A", on=armed) + sep + vol
+            + q("Alarm sound", sub=True, hl=open_sub, en=not armed, small="Siren")
+            + q("Message…", en=not armed, small=msg_sub) + q("Play test (3 s)") + sep
+            + q("Mode", sub=True, en=not armed) + q("Banner", on=True, en=not armed) + q("Sound", en=not armed)
+            + sep + q("Quit byaku", "⌘Q"))
+    box = lambda inner, w, extra="": f'<div class="menu" style="width:{w}px;background:{k["menu"]};border-color:{k["sep"]};{extra}">{inner}</div>'
+    if not open_sub:
+        return f'<div class="mwrap">{abar("A", t) if armed else mb.bar("off", t)}{box(main, 282)}</div>'
+    subm = q("Siren", on=True) + sep + "".join(q(n) for n in SOUNDS)
+    return f'<div class="mwrap">{mb.bar("off", t)}<div class="mrow">{box(main, 282)}{box(subm, 150, "margin-top:150px")}</div></div>'
+
+MIC = ('<svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="{c}" stroke-width="2.4" stroke-linecap="round">'
+       '<rect x="18" y="8" width="12" height="22" rx="6"/><path d="M12 24a12 12 0 0 0 24 0M24 36v5"/></g></svg>')
+
+def message_sheet(t):
+    k = TH[t]
+    r = lambda *a: mb.ring48(t, *a)
+    spin = ('<svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">'
+            f'<circle cx="24" cy="24" r="22" fill="none" stroke="{k["line"]}" stroke-width="4"/>'
+            f'<circle cx="24" cy="24" r="22" fill="none" stroke="{k["ink"]}" stroke-width="4" stroke-dasharray="34 200" transform="rotate(-90 24 24)"/></svg>')
+    cases = [
+        ("idle · no message yet", MIC.format(c=k["ink"]), "Record a message", "Plays instead of the spoken line. Up to 8 s.", ["Cancel", "*Record"]),
+        ("waiting for permission (first time only)", spin, "Waiting for microphone…", "Choose Allow in the system prompt.", ["Cancel"]),
+        ("recording, 3 s in", r("capture", 3 / 8, "5"), "Recording…", "Speak now. Stops by itself at 8 s.", ["*Stop"]),
+        ("recorded · Delete is one click, no confirm", r("ok"), "Message saved", "6 s. Stored on this Mac only.", ["Delete", "Record again", "*Play"]),
+        ("playing back", r("capture", 2 / 6, "4"), "Playing…", "At the alarm volume.", ["*Stop"]),
+        ("mic denied", r("seam"), "Microphone access is off", "Allow byaku in System Settings, then try again.", ["Cancel", "*Open microphone settings…"]),
+        ("failed (no mic, too short)", r("seam"), "Couldn’t record", "Too short. Try again.", ["Cancel", "*Try again"]),
+    ]
+    cells = "".join(f'<figure>{mb.card(t, ri, a, b, c).replace('class="card"', 'class="card w336"')}'
+                    f'<figcaption style="color:{k["mute"]}">{n}</figcaption></figure>' for n, ri, a, b, c in cases)
+    menus = (f'<figure>{sound_menu(t, "Spoken line", True)}<figcaption style="color:{k["ink"]}">Alarm sound ▸'
+             f'<span style="color:{k["mute"]}">Siren first, then every macOS sound A–Z. Picking only sets it; Play test previews. Slider release no longer blips</span></figcaption></figure>'
+             f'<figure>{sound_menu(t, "Recorded · 6 s", False)}<figcaption style="color:{k["ink"]}">Message…'
+             f'<span style="color:{k["mute"]}">subtitle shows what plays after the tone: “Spoken line” or “Recorded · N s”. Opens the panel below</span></figcaption></figure>'
+             f'<figure>{sound_menu(t, "Recorded · 6 s", False, armed=True)}<figcaption style="color:{k["ink"]}">Armed'
+             f'<span style="color:{k["mute"]}">Alarm sound and Message greyed; volume and Play test stay live</span></figcaption></figure>')
+    return (f'<div class="panel" style="background:{k["bg"]}"><p class="cap" style="color:{k["mute"]}">{t} · alarm sound + message</p>'
+            f'<div class="grid2">{menus}</div><div style="height:48px"></div><div class="grid2">{cells}</div></div>')
+
 CSS = mb.CSS + """
 .mrow{display:flex;align-items:flex-start}.mrow .menu+.menu{margin-left:-6px;margin-top:66px}
-.mi.hl{background:#0A64D8}.mi.two{height:34px}.mi.two .lb{display:flex;flex-direction:column;gap:1px}.mi.two small{font-size:11px}
+.mi.hl{background:#0A64D8}.mi.two{height:34px}.card.w336{width:336px}.card.w336 .btn{white-space:nowrap}.card.w336 .tx{width:224px}.mi.two .lb{display:flex;flex-direction:column;gap:1px}.mi.two small{font-size:11px}
 """ + ".grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:40px 32px;align-items:start}"
 
 def page():
     sec = lambda sid, f: f'<section id="{sid}" class="pair">{f("light")}{f("dark")}</section>'
     return (f'<!doctype html><html><head><meta charset="utf-8"><title>byaku Away mockups</title><style>{CSS}</style></head><body>'
-            + sec("icons", icons_sheet) + sec("menu", menu_sheet) + sec("volume", volume_sheet) + sec("slider", slider_sheet) + '</body></html>')
+            + sec("icons", icons_sheet) + sec("menu", menu_sheet) + sec("volume", volume_sheet) + sec("slider", slider_sheet) + sec("sounds", message_sheet) + '</body></html>')
 
 if __name__ == "__main__":
     html = page()
@@ -150,7 +205,7 @@ if __name__ == "__main__":
     with sync_playwright() as p:
         b = p.chromium.launch(); pg = b.new_page(viewport={"width": 1200, "height": 1000}, device_scale_factor=2)
         pg.set_content(html, wait_until="networkidle")
-        for s in ("icons", "menu", "volume", "slider"):
+        for s in ("icons", "menu", "volume", "slider", "sounds"):
             pg.locator(f"#{s}").screenshot(path=str(OUT / f"sheet-{s}.png"))
         b.close()
     print("wrote", OUT / "mockups.html", "and 2 sheets")

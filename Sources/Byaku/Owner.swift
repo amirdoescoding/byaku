@@ -53,6 +53,24 @@ struct Debounce {
 }
 
 /// Owner data = the 128 floats only, never an image (invariant 5). One file, one-click delete.
+/// The user's recorded Away message (replaces the spoken line). A new take is written to `tmp` and swapped in only
+/// when it's kept, so a cancelled re-record leaves the old message. Deleted with one click (AGENTS invariant 5).
+struct MessageStore {
+    var url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("byaku/message.m4a")
+    var tmp: URL { url.deletingLastPathComponent().appendingPathComponent("message-new.m4a") }
+    var exists: Bool { FileManager.default.fileExists(atPath: url.path) }
+
+    func prepare() throws { try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true) }
+    /// tmp → url. If it throws, the old message stays.
+    func install() throws {
+        let fm = FileManager.default
+        if exists { _ = try fm.replaceItemAt(url, withItemAt: tmp) } else { try fm.moveItem(at: tmp, to: url) }
+    }
+    func discardTmp() { try? FileManager.default.removeItem(at: tmp) }
+    func delete() throws { if exists { try FileManager.default.removeItem(at: url) } }
+}
+
 struct OwnerStore {
     var url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("byaku/owner.json")

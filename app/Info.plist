@@ -12,6 +12,7 @@
 	<key>CFBundleIconFile</key><string>AppIcon</string>
 	<key>LSMinimumSystemVersion</key><string>14.0</string>
 	<key>LSUIElement</key><true/>
+	<key>NSMicrophoneUsageDescription</key><string>byaku records your Away alarm message, only when you press Record. It stays on this Mac.</string>
 	<key>NSCameraUsageDescription</key><string>byaku uses the camera to notice when someone else is looking at your screen. Frames stay on this Mac and are never saved.</string>
 </dict>
 </plist>
