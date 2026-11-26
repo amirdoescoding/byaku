@@ -243,6 +243,9 @@ func must<T>(_ code: Int32, _ f: () throws -> T) -> T {
 }
 
 setvbuf(stdout, nil, _IOLBF, 0)  // line-buffer so piped output (logs, power.sh) is live
+if Bundle.main.bundleURL.pathExtension == "app" {  // Byaku.app launch (Finder/open): cwd is /, args may hold -psn_…
+    runApp(model: Bundle.main.path(forResource: "sface", ofType: "mlpackage") ?? "")  // missing → "face model missing"
+}
 let args = Array(CommandLine.arguments.dropFirst())
 switch args.first {
 case "detect":

@@ -130,6 +130,7 @@ func hostApp() -> String {
 }
 
 /// Compiles an .mlpackage at runtime (no Xcode / coremlcompiler) and wraps it as a Vision request.
+// ponytail: recompiles into temp on every launch; cache the .mlmodelc in Application Support if startup matters.
 func loadEmbedder(_ path: String, units: MLComputeUnits) throws -> (request: VNCoreMLRequest, compiled: URL, model: MLModel) {
     do {
         let compiled = try MLModel.compileModel(at: URL(fileURLWithPath: path))
