@@ -27,3 +27,6 @@
 - No Screen Recording permission for VS Code: `screencapture` returns wallpaper only. Verify windows via CGWindowListCopyWindowInfo instead;
   NSStatusItem frames are only real under `NSApp.run` (RunLoop.main.run in a test gives (0,-24)).
 - Guard sound: Epidemic Sound files can't be bundled in this MIT repo; use macOS system sounds or self-made audio.
+- 2026-11-26 PR7 app bundle: `scripts/bundle.sh` → `build/Byaku.app`; launch with `open build/Byaku.app` (running the inner binary gives TCC
+  to the terminal). Bundle id `dev.byaku.app` (never change). Settings (UserDefaults) moved to that domain, so they reset once; the owner
+  embedding in Application Support carries over. App icon: render the SVG with AppKit (`NSImage(contentsOfFile:)`), not `qlmanage`, which paints a white background.
