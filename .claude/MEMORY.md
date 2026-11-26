@@ -54,3 +54,8 @@
   transform → place resting views by frame, use transforms only for motion. Build full-screen overlays ahead (first composite stutters).
 - Synthetic mouse events (CGEvent post) trigger the Accessibility prompt; the user denied it. Verify UI by screenshot
   (`screencapture` works now) + the user walking through it.
+- 2026-11-27 PR B1 face scan: mesh mask (MediaPipe canonical, decimated to 160 v), the camera shows only until the sweep
+  (the user's sequence: camera alone 1 s → mask fades on top → sweep wipes the camera). The prototype uses the same 2D projection
+  math as Swift (no three.js) so tuning transfers. The Vision→mesh map is measured, not hand-written. Vision yaw/roll signs
+  = ours (+yaw = the user's own left); pitch sign unmeasured. B1 template = straight-hold prints only; B2 decides yawed prints.
+  `cacheDisplay` snapshots drop CAShapeLayer alpha/opacity: don't judge colours from them.

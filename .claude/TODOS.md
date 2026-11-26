@@ -22,8 +22,14 @@
 
 - [x] Step-by-step onboarding: real-menu tour with a coach bubble + mascot (PR12 `feat/onboarding`)
 - [x] Closing video after setup: founder clip with lockup intro/outro (bundled, offline)
-- [ ] **PR B: guided face scan**: circular live preview (never saved), progress ring, straight/left/right prompts, template
-  averaged across poses (also the yawed-match gap). Pre-register the margin bar first. User OK'd the preview (2026-11-26)
+- [x] **PR B1: guided face scan** (`feat/face-scan`): live mesh mask, camera until the sweep, straight/left/right holds
+- [ ] **PR B1 hardware QA** (only hardware can show): turn to your own left completes "left"; camera image monochrome + soft edge
+  + nothing left after the sweep (fallback if colour: grey overlay with a saturation compositingFilter); mask nods with the head
+  (`ScanFrame.pitchSign`); compact panel layout; LED off after Saved/Cancel/Esc/lock; VoiceOver; Reduce Motion; owner still
+  matches after a rescan and a second person/photo doesn't (`byaku match` / Guard live)
+- [ ] **PR B2: multi-pose template**: pre-register the margin bar (owner 0° and ±25° vs strangers), compare straight-only vs
+  multi-pose mean / per-pose max, verify live with a second person, then let side-hold prints into `ownerTemplate`
+- [ ] Optional scan delight: the mascot copies the user's brow raise / blink (Vision brow + eye points are already tracked)
 - [ ] Onboarding: VoiceOver pass on hardware (bubble announcements while the menu is open; video label)
 - [ ] Onboarding: unvisited-row dots were cut (native NSMenu can't draw in its gutter); revisit only if the count isn't enough
 - [ ] Install `impeccable-finish-reviewer` / `impeccable-documenter` agents (CLAUDE.md names them; they aren't installed)
