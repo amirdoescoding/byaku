@@ -1,0 +1,43 @@
+name: Release
+
+# Tag vX.Y.Z → build Byaku.app, zip it, publish a GitHub Release. On PRs touching the build it is a dry run (artifact only).
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - scripts/bundle.sh
+      - ml/**
+      - app/**
+      - THIRD_PARTY_NOTICES
+
+permissions:
+  contents: write
+
+jobs:
+  app:
+    runs-on: macos-15  # arm64; the build needs Apple silicon (torch arm64 wheel)
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Build Byaku.app (fetches pinned SFace, converts, parity-checks)
+        run: |
+          ver=$([ "$GITHUB_REF_TYPE" = tag ] && echo "${GITHUB_REF_NAME#v}" || plutil -extract CFBundleShortVersionString raw app/Info.plist)
+          echo "ver=$ver" >> "$GITHUB_ENV"
+          BYAKU_VERSION="$ver" scripts/bundle.sh
+      - name: Zip
+        run: |
+          zip="Byaku-$ver-arm64.zip"
+          ditto -c -k --keepParent build/Byaku.app "$zip"
+          shasum -a 256 "$zip" > "$zip.sha256"
+          cat "$zip.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Byaku-${{ env.ver }}-arm64
+          path: Byaku-*-arm64.zip*
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes Byaku-*-arm64.zip Byaku-*-arm64.zip.sha256

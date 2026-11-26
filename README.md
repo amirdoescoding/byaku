@@ -54,7 +54,16 @@ The design target is ≤ ~1.5 W of extra power while guarding. Details are in
 
 ## Install
 
-byaku isn't notarized yet, so you build it from source. It takes one script.
+**Download** (Apple silicon, macOS 14 or later)
+
+1. Get `Byaku-<version>-arm64.zip` from [Releases](https://github.com/amirdoescoding/byaku/releases) and unzip it.
+2. Move `Byaku.app` to Applications and open it.
+3. byaku isn't notarized yet (no paid Apple developer account), so macOS blocks the first open. Go to
+   System Settings → Privacy & Security, scroll down and click **Open Anyway**. Or, in Terminal:
+   `xattr -dr com.apple.quarantine /Applications/Byaku.app`.
+   Each release has a new signature, so after an update macOS asks for camera access again.
+
+**Or build from source**. It takes one script.
 
 **You need**
 - macOS 14 or later on **Apple silicon**. Building needs an arm64 Mac (the model converter pins torch 2.7.0, which has no Intel macOS build).
@@ -69,7 +78,7 @@ cd byaku
 scripts/bundle.sh --install
 ```
 
-This builds `Byaku.app`, signs it locally (ad-hoc), copies it to `~/Applications/Byaku.app`, and opens it. The first run
+This builds `Byaku.app`, signs it locally, copies it to `~/Applications/Byaku.app`, and opens it. The first run
 also downloads the SFace face model and converts it to Core ML. uv sets up Python 3.12, torch and coremltools for this
 (about 650 MB in `ml/.venv`, a few minutes). Later builds skip that step. The network is only used at build
 time. The app itself makes no network calls.
@@ -85,12 +94,15 @@ time. The app itself makes no network calls.
 git pull && scripts/bundle.sh --install
 ```
 
-Each local build has a new signature, so macOS may ask for camera access again. Open at login, your face and your settings are kept.
+An ad-hoc build has a new signature each time, so macOS may ask for camera access again. To avoid that, run
+`scripts/dev-identity.sh` once: it adds a self-signed "byaku dev" code-signing certificate to your login keychain, and
+`bundle.sh` signs with it from then on (then `tccutil reset Camera dev.byaku.app` and allow the camera one last time).
+Open at login, your face and your settings are kept.
 
 **Uninstall** (in this order, so no stale login item is left behind)
 1. In the byaku menu: turn off **Open at login**, click **Delete face data**, then **Quit byaku**.
-2. Delete `~/Applications/Byaku.app`.
-3. Optional cleanup: `tccutil reset Camera dev.byaku.app` and `defaults delete dev.byaku.app`.
+2. Delete `Byaku.app` (from `/Applications`, or `~/Applications` for a source build).
+3. Optional cleanup: `tccutil reset Camera dev.byaku.app` and `defaults delete dev.byaku.app`; source builds: `security delete-identity -c "byaku dev"`.
 
 **Troubleshooting**
 - *"Not guarding: camera access denied"*: use **Open camera settings…** in the menu and allow byaku.
