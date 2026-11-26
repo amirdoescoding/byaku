@@ -1,8 +1,13 @@
 # Restart
 
-**2026-11-26**: PR10 `feat/release` (#11, open; CI + release dry run green). `scripts/dev-identity.sh` made the local "byaku dev"
-signing identity (done on this Mac); `bundle.sh` signs with it. `release.yml`: tag `v*` → zip + sha256 on GitHub Releases.
-**Waiting on the user**: camera grant survives a rebuild (after `tccutil reset Camera dev.byaku.app` + one grant), Open at login
-still on, downloaded zip opens via Open Anyway. After merge: user OKs pushing tag `v0.1.0`.
+**2026-11-26**: PR11 `feat/away-sounds` (open, waiting for the user's confirmation). Away is finished for v0.1:
+- Alarm sound picker: Siren + macOS sounds. The menu stays open and each pick plays 1.5 s.
+- Recorded message panel: record, play, record again, delete, plus a ×.
+- The sound and the message play together. Levels were set by ear with the user (toneGain 0.45, sirenTrim 0.25).
+- Play test and the slider blip are removed.
 
-Next (from TODOS): Away sound picker + voice level, or the covered-lens fail-closed gap.
+The user checked everything on their Mac: "everything works".
+
+Open from PR10: tag `v0.1.0` after the user OKs the push. The public release is planned for 2026-11-27.
+
+Next (from TODOS): the covered-lens fail-closed gap, or the small picker/panel nits listed at the top of TODOS.

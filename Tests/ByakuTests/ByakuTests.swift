@@ -134,3 +134,28 @@ func awayLookerRules(scores: [Float?], looker: Bool) {
     let px = { (r: NSBitmapImageRep) in r.colorAt(x: Int(CGFloat(r.pixelsWide) * 0.8), y: r.pixelsHigh - Int(20 * CGFloat(r.pixelsHigh) / 62))!.alphaComponent }  // fill is opaque white; the bare track is 16% alpha
     #expect(px(full) > 0.9 && px(low) < 0.5)
 }
+
+@Test func systemSoundsListsAiffSorted() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    for n in ["b.aiff", "a.aiff", "c.txt"] { FileManager.default.createFile(atPath: dir.appendingPathComponent(n).path, contents: Data()) }
+    #expect(Alarm.systemSounds(in: dir) == ["a", "b"])
+    #expect(Alarm.systemSounds(in: dir.appendingPathComponent("missing")).isEmpty)
+}
+
+@Test func messageStoreKeepsOldUntilSwap() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let s = MessageStore(url: dir.appendingPathComponent("message.m4a"))
+    let put = { (u: URL, t: String) in try Data(t.utf8).write(to: u) }
+    let read = { String(decoding: try Data(contentsOf: s.url), as: UTF8.self) }
+    try put(s.tmp, "one"); try s.install()                       // no message yet: move
+    #expect(try read() == "one" && !FileManager.default.fileExists(atPath: s.tmp.path))
+    try put(s.tmp, "two"); s.discardTmp()                        // cancelled re-record: old one stays
+    #expect(try read() == "one")
+    try put(s.tmp, "three"); try s.install()                     // kept re-record: replaced
+    #expect(try read() == "three")
+    try s.delete(); #expect(!s.exists)
+}
