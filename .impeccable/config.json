@@ -65,6 +65,51 @@
         ],
         "createdAt": "2026-11-25T23:29:16.579Z",
         "reason": "mockup fixture, same as design/menubar/mockups.html: faux menu-bar strip and menu rows drawn at native macOS metrics"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "design/away/mockups.html"
+        ],
+        "createdAt": "2026-11-26T08:59:12.705Z",
+        "reason": "assistant: mockup fixture, same as design/menubar + design/guard: greyed rows imitate native NSMenu disabled items, which AppKit draws in the app"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/away/mockups.html"
+        ],
+        "createdAt": "2026-11-26T08:59:12.720Z",
+        "reason": "assistant: mockup imitates macOS menu bar/menu metrics (same as menubar/guard mockups)"
+      },
+      {
+        "rule": "tight-leading",
+        "value": "*",
+        "files": [
+          "design/away/mockups.html"
+        ],
+        "createdAt": "2026-11-26T08:59:12.736Z",
+        "reason": "assistant: single-line NSMenu rows at 13px/1 imitate native menu metrics; sheet chrome inherited from design/menubar/src/mockups.py"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          "design/away/mockups.html"
+        ],
+        "createdAt": "2026-11-26T08:59:12.749Z",
+        "reason": "assistant: 11px is the sheet's one-line caption label and NSMenu shortcut glyphs, not body text; inherited from design/menubar/src/mockups.py"
+      },
+      {
+        "rule": "wide-tracking",
+        "value": "*",
+        "files": [
+          "design/away/mockups.html"
+        ],
+        "createdAt": "2026-11-26T08:59:12.763Z",
+        "reason": "assistant: the tracked text is the one-line sheet caption label (.cap), mockup chrome inherited from design/menubar/src/mockups.py, not app UI"
       }
     ]
   }

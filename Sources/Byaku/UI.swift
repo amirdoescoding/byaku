@@ -12,7 +12,7 @@ enum StatusIcon {
             let t = NSAffineTransform()
             t.translateX(by: 1, yBy: 1); t.scale(by: 16 / 56); t.translateX(by: -4, yBy: -4)
             t.concat()
-            (state == .guarding || state == .alert ? Tokens.accent : NSColor.black).set()
+            (state == .off || state == .error ? NSColor.black : Tokens.accent).set()
             NSGraphicsContext.saveGraphicsState()
             if state == .error {  // knock out 1.5 units either side of the slash
                 let clip = NSBezierPath(rect: NSRect(x: 0, y: 0, width: 64, height: 64))
@@ -20,11 +20,18 @@ enum StatusIcon {
                 clip.windingRule = .evenOdd
                 clip.addClip()
             }
-            let ring = NSBezierPath(ovalIn: NSRect(x: 32 - 25.75, y: 32 - 25.75, width: 51.5, height: 51.5))
-            ring.lineWidth = 4.5
-            ring.stroke()
-            blades.forEach { $0.fill() }
-            if state == .alert { NSBezierPath(ovalIn: NSRect(x: 26, y: 26, width: 12, height: 12)).fill() }
+            if state == .away {  // solid iris: the ring's outer disc (r 28) with the blades knocked out
+                let iris = NSBezierPath(ovalIn: NSRect(x: 4, y: 4, width: 56, height: 56))
+                blades.forEach(iris.append)
+                iris.windingRule = .evenOdd
+                iris.fill()
+            } else {
+                let ring = NSBezierPath(ovalIn: NSRect(x: 32 - 25.75, y: 32 - 25.75, width: 51.5, height: 51.5))
+                ring.lineWidth = 4.5
+                ring.stroke()
+                blades.forEach { $0.fill() }
+                if state == .alert || state == .alarm { NSBezierPath(ovalIn: NSRect(x: 26, y: 26, width: 12, height: 12)).fill() }
+            }
             NSGraphicsContext.restoreGraphicsState()  // drops the knockout clip, keeps the transform
             if state == .error { slash(width: 4.5).fill() }
             return true
@@ -40,6 +47,8 @@ enum StatusIcon {
         case .guarding: "byaku, guarding, camera on"
         case .alert: "byaku, alert, someone else is looking"
         case .error: "byaku, not guarding, \(reason ?? "camera unavailable")"
+        case .away: "byaku, away, locks if anyone looks"
+        case .alarm: "byaku, alarm, someone looked while you were away"
         }
     }
 
@@ -439,5 +448,70 @@ private final class SurfaceView: NSView {
     override func updateLayer() {
         layer!.backgroundColor = cg(Tokens.surface, in: self)
         layer!.borderColor = cg(Tokens.line, in: self)
+    }
+}
+
+// MARK: - VolumeSlider
+
+/// "Alarm volume" row inside the NSMenu (docs/designs/away-mode.md §Volume): Control Center Sound style. A 24 pt pill,
+/// filled up to a white knob that carries the speaker glyph. Range Tokens.Away.minVolume…1: the alarm is never silent.
+/// `onCommit` fires on mouse-up (and per VoiceOver step) with the final value.
+final class VolumeSlider: NSView {
+    var onCommit: (Float) -> Void = { _ in }
+    private(set) var value: Float
+    private let pad = NSEdgeInsets(top: 6, left: 23, bottom: 8, right: 13), knob: CGFloat = 24
+    private let title = NSTextField(labelWithString: "Alarm volume")
+
+    init(value: Float, width: CGFloat = 270) {
+        self.value = value
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 6 + 16 + 6 + 24 + 8))
+        autoresizingMask = .width
+        title.font = .systemFont(ofSize: 13, weight: .semibold)
+        title.frame = NSRect(x: pad.left, y: bounds.height - pad.top - 16, width: 200, height: 16)
+        title.setAccessibilityElement(false)
+        addSubview(title)
+        setAccessibilityElement(true); setAccessibilityRole(.slider); setAccessibilityLabel("Alarm volume")
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    private var track: NSRect { NSRect(x: pad.left, y: pad.bottom, width: bounds.width - pad.left - pad.right, height: knob) }
+    private var frac: CGFloat { CGFloat((value - Tokens.Away.minVolume) / (1 - Tokens.Away.minVolume)) }
+
+    override func draw(_ dirty: NSRect) {
+        let t = track, x = t.minX + frac * (t.width - knob)
+        Tokens.Away.sliderTrack.setFill()
+        NSBezierPath(roundedRect: t, xRadius: knob / 2, yRadius: knob / 2).fill()
+        NSColor.white.setFill()
+        NSBezierPath(roundedRect: NSRect(x: t.minX, y: t.minY, width: x - t.minX + knob, height: knob), xRadius: knob / 2, yRadius: knob / 2).fill()
+        let k = NSRect(x: x, y: t.minY, width: knob, height: knob)
+        NSGraphicsContext.saveGraphicsState()
+        let sh = NSShadow(); sh.shadowBlurRadius = 3; sh.shadowOffset = NSSize(width: 0, height: -1)
+        sh.shadowColor = Tokens.Away.knobShadow; sh.set()
+        NSBezierPath(ovalIn: k).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        let name = value > 0.6 ? "speaker.wave.3.fill" : value > 0.35 ? "speaker.wave.2.fill" : "speaker.wave.1.fill"
+        let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold).applying(.init(paletteColors: [Tokens.Away.knobGlyph]))
+        if let g = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(cfg) {
+            g.draw(in: NSRect(x: k.midX - g.size.width / 2, y: k.midY - g.size.height / 2, width: g.size.width, height: g.size.height))
+        }
+    }
+
+    private func set(fromX px: CGFloat) {
+        let t = track, f = min(max((px - t.minX - knob / 2) / (t.width - knob), 0), 1)
+        value = Tokens.Away.minVolume + Float(f) * (1 - Tokens.Away.minVolume)
+        setAccessibilityValue("\(Int((value * 100).rounded())) percent")
+        needsDisplay = true
+    }
+
+    override func mouseDown(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x) }
+    override func mouseDragged(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x) }
+    override func mouseUp(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x); onCommit(value) }
+
+    override func accessibilityPerformIncrement() -> Bool { step(0.25) }
+    override func accessibilityPerformDecrement() -> Bool { step(-0.25) }
+    private func step(_ d: Float) -> Bool {
+        value = min(max(value + d, Tokens.Away.minVolume), 1); needsDisplay = true
+        setAccessibilityValue("\(Int((value * 100).rounded())) percent"); onCommit(value)
+        return true
     }
 }

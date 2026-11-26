@@ -40,6 +40,18 @@ func lookerRules(scores: [Float?], looker: Bool) {
     #expect(frameHasLooker(scores) == looker)
 }
 
+@Test(arguments: [([], false), ([0.9], false), ([0.1], true), ([nil], true),  // Away fails closed: a lone unembeddable face counts
+                  ([0.9, nil], true)] as [([Float?], Bool)])
+func awayLookerRules(scores: [Float?], looker: Bool) {
+    #expect(frameHasLooker(scores, away: true) == looker)
+}
+
+@Test func sirenIsBoundedAndLoud() {
+    let s = (0..<48000).map { siren(Double($0) / 48000) }  // 1 s at 48 kHz: both tones
+    #expect(s.allSatisfy { abs($0) <= 0.9 })
+    #expect(s.map { $0 * $0 }.reduce(0, +) / Float(s.count) > 0.4)  // RMS² near a square wave, not a quiet sine
+}
+
 @Test func debounceFiresOnTwoOfThreeAndClearsAfterThree() {
     func run(_ frames: [Bool]) -> [Bool] { var d = Debounce(); return frames.map { d.add($0) } }
     #expect(run([true, false, false, false]) == [false, false, false, false])      // one stray frame never fires
@@ -100,4 +112,25 @@ func lookerRules(scores: [Float?], looker: Bool) {
     #expect(error(18, 18) > 0.8)                              // the slash crosses the centre
     #expect(guarding(4, 18) > 0.5 && off(4, 18) > 0.5)        // the ring is there in every state
     #expect(guarding(1, 1) < 0.1 && guarding(18, 1) < 0.1)     // nothing outside the ring (blade arcs bend inward)
+    let (_, away) = try alpha(.away), (_, alarm) = try alpha(.alarm)
+    #expect(away(18, 18) > 0.8 && away(18, 26) > 0.8 && guarding(18, 26) < 0.2)  // solid iris fills inside the ring
+    #expect(away(1, 1) < 0.1)
+    #expect(alarm(18, 18) > 0.8)                                // alarm reuses the alert dot
+}
+
+@Test func volumeSliderKnobTracksValue() throws {
+    func render(_ v: Float) throws -> NSBitmapImageRep {
+        let s = VolumeSlider(value: v)
+        s.appearance = NSAppearance(named: .darkAqua)
+        let rep = try #require(s.bitmapImageRepForCachingDisplay(in: s.bounds))
+        s.cacheDisplay(in: s.bounds, to: rep)
+        if let dir = ProcessInfo.processInfo.environment["BYAKU_ICON_DUMP"] {
+            try rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "\(dir)/slider-\(v).png"))
+        }
+        return rep
+    }
+    // Right end of the track, mid-height (rep is y-down): white fill only when full.
+    let full = try render(1), low = try render(Tokens.Away.minVolume)
+    let px = { (r: NSBitmapImageRep) in r.colorAt(x: Int(CGFloat(r.pixelsWide) * 0.8), y: r.pixelsHigh - Int(20 * CGFloat(r.pixelsHigh) / 62))!.alphaComponent }  // fill is opaque white; the bare track is 16% alpha
+    #expect(px(full) > 0.9 && px(low) < 0.5)
 }

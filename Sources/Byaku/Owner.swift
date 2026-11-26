@@ -4,7 +4,8 @@ import Vision
 /// Swift-path owner threshold (live bar v2, ARCHITECTURE "Swift alignment"). Provisional.
 let ownerThreshold: Float = 0.300
 
-enum GuardState { case off, guarding, alert, error }
+/// away = Away armed (or arming), alarm = Away fired: locked + siren until unlock.
+enum GuardState { case off, guarding, alert, error, away, alarm }
 
 /// Counting rule (pre-registered in af2f29e, conf amended in 579821d): exactly one face, rect confidence >= 0.5,
 /// and an aligned embedding of that face. Returns the unit embedding when the frame counts.
@@ -29,9 +30,9 @@ func facesScreen(yaw: Float?, pitch: Float?) -> Bool { abs(yaw ?? 0) <= maxYaw &
 
 /// One Guard frame. `scores` = owner cosine of every face that passed the gaze gate, nil = couldn't embed.
 /// A looker scores below the owner threshold, or can't be embedded while 2+ faces face the screen.
-/// A lone unembeddable face never counts (Guard fails open).
-func frameHasLooker(_ scores: [Float?]) -> Bool {
-    if scores.count == 1 { return scores[0].map { $0 < ownerThreshold } ?? false }
+/// A lone unembeddable face never counts in Guard (fails open); in Away it does (fails closed: any face but the owner's).
+func frameHasLooker(_ scores: [Float?], away: Bool = false) -> Bool {
+    if scores.count == 1, !away { return scores[0].map { $0 < ownerThreshold } ?? false }
     return scores.contains { $0 == nil || $0! < ownerThreshold }
 }
 
