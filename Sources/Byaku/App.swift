@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import ServiceManagement
 import Vision
 
 /// The menu-bar app (docs/designs/menubar.md): `Byaku.app` (scripts/bundle.sh), or `byaku app [model]` from a terminal,
@@ -19,7 +20,6 @@ final class AppController: NSObject, NSMenuDelegate {
     private var embedder: VNCoreMLRequest?
     private var modelError: String?
 
-    private var guardOn = false
     private var state = GuardState.off
     private var errorReason: String?
     private var guardCam: Camera?
@@ -28,7 +28,12 @@ final class AppController: NSObject, NSMenuDelegate {
     private let defaults = UserDefaults.standard
     private let banner = BannerPanel(), overlay = WatchOverlay()
     private var lifted = false, bannerClosed = false  // "Lift for now" / × : until the next separate alert
-    private enum Key { static let mode = "mode", banner = "banner", sound = "sound" }
+    private enum Key { static let mode = "mode", banner = "banner", sound = "sound", guardOn = "guard" }
+    /// Persisted so Guard resumes at launch (and at login) if it was on at quit.
+    private var guardOn: Bool {
+        get { defaults.bool(forKey: Key.guardOn) }
+        set { defaults.set(newValue, forKey: Key.guardOn) }
+    }
     private var mode: Mode { Mode(rawValue: defaults.integer(forKey: Key.mode)) ?? .iris }
 
     private var panel: EnrollPanel?
@@ -50,6 +55,7 @@ final class AppController: NSObject, NSMenuDelegate {
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(screenLocked),
                                                             name: .init("com.apple.screenIsLocked"), object: nil)
         render()
+        if guardOn { if owner != nil { startGuard() } else { guardOn = false } }
     }
 
     // MARK: state → icon + menu
@@ -124,6 +130,11 @@ final class AppController: NSObject, NSMenuDelegate {
         del.isEnabled = owner != nil
         menu.addItem(del)
         menu.addItem(.separator())
+        if Bundle.main.bundleURL.pathExtension == "app" {  // a terminal-run CLI has no bundle to register
+            let login = entry("Open at login", #selector(toggleLogin))
+            login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+            menu.addItem(login)
+        }
         menu.addItem(entry("Quit byaku", #selector(quit), key: "q"))
     }
 
@@ -278,6 +289,14 @@ final class AppController: NSObject, NSMenuDelegate {
         do { try store.delete() } catch { NSSound.beep(); return }
         owner = nil
         stopGuard()
+    }
+
+    /// The system holds the login item; no copy in UserDefaults. Needs approval or failed → let the user see Login Items.
+    @objc private func toggleLogin() {
+        let app = SMAppService.mainApp
+        let wasOn = app.status == .enabled
+        do { try wasOn ? app.unregister() : app.register() } catch { SMAppService.openSystemSettingsLoginItems(); return }
+        if app.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
     }
 
     @objc private func openCameraSettings() {

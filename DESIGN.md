@@ -23,6 +23,7 @@ byaku's UI principles. The full token system is written by `impeccable-documente
    - Error: ink + diagonal cut.
 
    Off vs Guarding differ by colour only. The user accepted this; the VoiceOver label, status line and camera dot cover it.
+   The last menu section is **Open at login** (a checkmark like Banner/Sound, shown only in `Byaku.app`) then **Quit byaku**.
 10. **Motion.**
     - Anything a trigger opens grows from that trigger.
     - Ease-out only. Transitions take 300 ms or less; the countdown and spinner show time, so they run longer.
