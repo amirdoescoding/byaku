@@ -1,8 +1,7 @@
 # Restart
 
-**2026-11-26**: PR6 `feat/guard-actions` is open as #7 (https://github.com/amirdoescoding/byaku/pull/7), review fixes committed and live-checked: gaze gate + per-face match + 2-of-3 debounce, banner, Mode ladder
-(Whisper/Iris/Shade/Awaken), Iris mist/dim overlay, Lift for now, sound toggle. Spec `docs/designs/guard-actions.md`, mockups `design/guard/`.
-Run with `.build/debug/byaku app ml/models/sface.mlpackage`.
+**2026-11-26**: PR7 `feat/app-bundle`: `scripts/bundle.sh` → `build/Byaku.app` (ad-hoc signed, model in Resources, own camera prompt).
+All four live checks passed. Run with `scripts/bundle.sh && open build/Byaku.app`.
 
-Next session (after `/clear`), pick from `.claude/TODOS.md` "Next": the `.app` bundle, the yaw/pitch granularity check + gate tuning
-with a second person, or the yawed-face owner match.
+Next session (after `/clear`), pick from `.claude/TODOS.md` "Next": Open at Login (mockups first), a stable signing identity,
+the yaw/pitch granularity check + gate tuning with a second person, or the yawed-face owner match.

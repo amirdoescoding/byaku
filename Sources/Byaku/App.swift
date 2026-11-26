@@ -2,7 +2,8 @@ import AppKit
 import AVFoundation
 import Vision
 
-/// `byaku app [model]`: the menu-bar app (docs/designs/menubar.md). Launch from Terminal for now; camera TCC goes to the host.
+/// The menu-bar app (docs/designs/menubar.md): `Byaku.app` (scripts/bundle.sh), or `byaku app [model]` from a terminal,
+/// where camera TCC goes to the terminal instead.
 func runApp(model: String) -> Never {
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)  // no Dock icon

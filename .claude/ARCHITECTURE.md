@@ -93,6 +93,7 @@ Most of the savings come from the pipeline, not the language.
 | 2026-11-25 | Vision → 5 points: pupils, nose-region centroid, outer-lip extremes along the eye axis | Picked by pixel error to YuNet (err/IOD), never by embedding cosine |
 | 2026-11-25 | Swift owner-match threshold provisional 0.300 (Python path: 0.437) | Swift live bar v2 PASS, margin +0.228; see "Swift alignment" below |
 | 2026-11-25 | Menu-bar app = `byaku app` subcommand in the one target (no library split yet) | No `public` churn; split when the `.app` bundle needs a no-args launch |
+| 2026-11-26 | `Byaku.app` via `scripts/bundle.sh` (no Xcode): release build + `app/Info.plist` + committed `app/AppIcon.icns` + model in Resources, ad-hoc signed last; still no library split | `main.swift` runs the app when `Bundle.main` is an `.app`, which covers the no-args launch. arm64 only (universal needs Xcode). Bundle id `dev.byaku.app` is fixed (TCC + defaults key on it) |
 | 2026-11-25 | ~~Guard alert rule v0: ≥2 faces → alert~~ (superseded 2026-11-26) | Only the largest face was embedded |
 | 2026-11-26 | Guard alert rule v1: gaze gate (\|yaw\| ≤ 30°, \|pitch\| ≤ 25°, provisional) **before** landmarks/SFace; embed every facing face (cap 4); looker = below 0.300, or unembeddable while 2+ facing; a lone unembeddable face fails open | Turned-away faces cost nothing and the owner's own turned head can't score as a stranger. `detect --embed`/`match` keep the largest-face path (pre-registered evals) |
 | 2026-11-26 | Debounce: fire on 2 of the last 3 frames, clear after 3 clean (~2 s / ~3 s at 1 fps) | One stray frame never fires; user choice "balanced" |
@@ -183,8 +184,8 @@ A browser video under an Awaken alert hit 1–2 W, which is video decode/composi
 `scripts/power.sh` row with Guard on and one face (whole-system), and a scroll baseline without the overlay.
 
 ## Open risks
-- **Camera permission (TCC)** needs a `.app` bundle with `NSCameraUsageDescription`. Only Command Line Tools are
-  installed, not Xcode. SwiftPM builds work, but bundling and signing may need Xcode or a bundling script.
+- **Camera permission (TCC)**: solved by `Byaku.app` (own prompt). Ad-hoc signing ties the grant to the cdhash, so a rebuild may
+  re-prompt (`tccutil reset Camera dev.byaku.app`). A stable signing identity, then Developer ID + notarization, is still open.
 - **Gaze accuracy.** Yaw/pitch thresholds alone will false-positive on people looking near the screen. Vision rev-3 yaw/pitch granularity is not verified live yet (continuous vs binned). EyesOff
   trained a custom ~300k-parameter classifier on ~80k images.
 

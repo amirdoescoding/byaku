@@ -31,6 +31,7 @@ Verified on an M1 with Command Line Tools only (no Xcode). `swift test` runs swi
 ```sh
 swift build                           # build the spike CLI
 swift test                            # swift-testing unit tests
+scripts/bundle.sh                     # build/Byaku.app (needs ml/models/sface.mlpackage); then: open build/Byaku.app
 .build/debug/byaku detect --fps 2     # built-in camera → face count, yaw, pitch; prints delivered/processed fps
 .build/debug/byaku lock-test          # LOCKS THE SCREEN; verifies the lock and camera-while-locked
 scripts/power.sh                      # unplugged: whole-system W vs idle, 3×120 s alternating

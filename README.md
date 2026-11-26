@@ -42,16 +42,24 @@ The design target is ≤ ~1.5 W of extra power while guarding. Details are in
 
 ## Roadmap
 
-- [ ] v0 spike: camera → face count in the terminal, with power measured
-- [ ] Owner enrollment
-- [ ] Gaze heuristic
-- [ ] Guard actions: banner, dim
+- [x] v0 spike: camera → face count in the terminal, with power measured
+- [x] Owner enrollment
+- [x] Gaze heuristic
+- [x] Guard actions: banner, dim
 - [ ] Away actions: sound, lock
 - [ ] Menu bar + settings
 - [ ] Signed `.app` release
 - [ ] Trained gaze classifier (`ml/`)
 
 ## Development
+
+Build the app (Apple silicon, Command Line Tools are enough):
+
+```sh
+(cd ml && uv run convert_sface.py)   # once: fetches and converts the face model
+scripts/bundle.sh                    # → build/Byaku.app
+open build/Byaku.app
+```
 
 See [`AGENTS.md`](AGENTS.md) for the stack, commands, invariants and workflow.
 

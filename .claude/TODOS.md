@@ -1,7 +1,8 @@
 # Backlog
 
 ## Next (pick one per PR)
-- [ ] `.app` bundle (Info.plist, NSCameraUsageDescription, LSUIElement, model in Resources, menu-bar PDF + .icns); split a library target then
+- [ ] Open at Login (SMAppService + menu item; mockups first)
+- [ ] Stable self-signed identity so rebuilds keep the camera grant; later Developer ID + notarization + GitHub Release
 - [ ] Verify the violet icon on a light menu bar (picks from the drawing appearance; spec wants `button.effectiveAppearance`)
 - [ ] Optional: `scripts/power.sh 3 120 "1" "--embed ml/models/sface.mlpackage"` battery row (rails already show ~+20–25 mW)
 
@@ -12,6 +13,10 @@
 - [ ] Power: `scripts/power.sh` row with Guard on + one face (whole system); scroll baseline without the overlay
 - [ ] Away alarm: loud SFX + "byaku spotted a threat!" voice + looping sound; needs a redistributable audio source (Epidemic's licence doesn't allow bundling)
 - [ ] Guard sound: replace `Submarine` once a licence-clean file exists
+
+## Done: PR7 app bundle (2026-11-26)
+- [x] `scripts/bundle.sh`, `app/Info.plist`, `app/AppIcon.icns`, `.app` launch path in `main.swift`; no library split needed
+- [x] Live (user): camera prompt names byaku, enroll, photo → alert, Finder relaunch keeps the owner
 
 ## Done: PR6 Guard actions (2026-11-26)
 - [x] Spec + mockups approved (Mode ladder Whisper/Iris/Shade/Awaken, banner with rotating line, Lift for now)
@@ -24,7 +29,7 @@
 ## Done: PR4 brand (2026-11-25)
 - [x] Round 1 exploration (6 symbols × 3 weights, 5 faces, 4 violets) → E2 + Rondel 500 + iris/dusk
 - [x] Final SVG set, palette.md (computed contrast), app icon, menu-bar template, philosophy.md
-- [ ] Export the app icon to `.icns` and the menu-bar template to PDF when the app target exists
+- [x] App icon → `app/AppIcon.icns` (PR7); menu-bar PDF dropped (the icon is drawn in code with per-state colour)
 
 ## Done: PR5 menu-bar app (2026-11-25)
 - [x] Spec + mockups (approved), `byaku app`: icon states, menu, face setup panel, Guard on/off, delete
@@ -63,7 +68,7 @@
 
 ## App
 - [ ] Menu-bar UI + settings (impeccable)
-- [ ] `.app` bundle with NSCameraUsageDescription, signing
+- [x] `.app` bundle with NSCameraUsageDescription, ad-hoc signed (PR7)
 - [ ] Whitelist consent + privacy: store embeddings only (never photos), consent wording, per-person delete
 - [ ] CI is live once this PR lands (build + test on macos-15); verify the first run
 
