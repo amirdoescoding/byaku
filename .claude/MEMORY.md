@@ -40,3 +40,7 @@
   Sequoia dropped right-click → Open). Local builds sign with self-signed "byaku dev" (`scripts/dev-identity.sh`, LibreSSL
   `/usr/bin/openssl`; Homebrew OpenSSL 3 p12s fail `security import`) so the DR is the cert leaf and rebuilds keep TCC.
   Models are sha256-pinned in `ml/fetch.py`. CoreML parity passes on GitHub's macos-15 runner (0.99994). Onboarding redesign waits until after MVP + devops.
+- 2026-11-26 PR11 Away sounds: the tone and message play together. The user tuned the levels by ear: toneGain 0.45, and an extra sirenTrim 0.25 on the siren
+  only, because the clipped square was far louder than the system sounds at the same gain. A sound-picker row is a custom NSMenuItem view
+  (`SoundRow`): a plain item always closes the menu, and the user wanted iPhone-style pick-and-hear. The user dropped "Play test". The message
+  is `Application Support/byaku/message.m4a`, and the mic runs only while recording.

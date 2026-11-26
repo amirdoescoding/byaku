@@ -2,8 +2,11 @@
 
 ## Next (pick one per PR)
 
-- [ ] Away sound picker: the siren is too alarming for some; let the user pick the sound (system sounds + computed siren). Mockups first
-- [ ] Away spoken line is too quiet next to the siren: raise the voice or duck the siren while it speaks
+- [ ] Away sound picker: Return doesn't pick a highlighted sound (custom menu-row views); click or VoiceOver press only
+- [ ] Message panel: picking a sound while the panel plays the message stops it, but the panel's countdown sticks at 1 until Stop
+
+- [x] Away sound picker: the siren is too alarming for some; let the user pick the sound (system sounds + computed siren). Mockups first
+- [x] Away spoken line is too quiet next to the siren: raise the voice or duck the siren while it speaks
 - [ ] Developer ID + notarization once there is a paid Apple account (release.yml keeps ad-hoc until then)
 - [ ] Verify the violet icon on a light menu bar (picks from the drawing appearance; spec wants `button.effectiveAppearance`)
 - [ ] Optional: `scripts/power.sh 3 120 "1" "--embed ml/models/sface.mlpackage"` battery row (rails already show ~+20–25 mW)
@@ -11,7 +14,7 @@
   eye/nose mapping judged by pixel error on real yawed faces, or multi-pose enrollment. Pre-register before re-running.
 - [ ] Verify Vision rev-3 yaw/pitch are continuous (turn head under `byaku detect`); tune the ±30°/±25° gaze gate with a second person
 - [ ] Power: `scripts/power.sh` row with Guard on + one face (whole system); scroll baseline without the overlay
-- [ ] Away: recorded message (mic permission, record/play/delete UI, file in Application Support); replaces the spoken line when set. Mockups first
+- [x] Away: recorded message (mic permission, record/play/delete UI, file in Application Support); replaces the spoken line when set. Mockups first
 - [ ] Away: covering the lens keeps (black) frames coming, so the stall check never fires; consider "too dark for N s → lock"
 - [ ] Guard sound: replace `Submarine` once a licence-clean file exists
 

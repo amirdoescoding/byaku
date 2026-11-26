@@ -40,9 +40,11 @@ Actions
 - **Iris / dim** (shipped): `WatchOverlay`, one click-through borderless window per screen at `.statusBar`, below the menu
   bar; gradient-strip mist and/or 40% black. Chosen per alert by the Mode ladder (Whisper/Iris/Shade/Awaken).
 - **Guard sound** (shipped, opt-in): one `NSSound("Submarine")` per alert.
-- **Away alarm** (shipped, `Alarm.swift`): `AVAudioEngine` + `AVAudioSourceNode` rendering `siren(t)` (960/770 Hz two-tone)
-  for 3 s, then `AVSpeechSynthesizer` says "byaku spotted a threat!", looped until unlock. Default output unmuted at full volume
-  while it plays (CoreAudio `VirtualMainVolume`/`Mute`), restored on stop. No audio file ships, so there is nothing to license.
+- **Away alarm** (shipped, `Alarm.swift`): an `AVAudioEngine` built per alarm, looping either `siren(t)` (960/770 Hz two-tone,
+  `AVAudioSourceNode`) or a picked `/System/Library/Sounds` file (`AVAudioPlayerNode`) at `toneGain` (siren × `sirenTrim`), with the
+  message on top from the first moment: the user's `message.m4a` (`AVAudioPlayer`) or `AVSpeechSynthesizer`, repeated 1 s after it
+  ends, until unlock. Default output unmuted at the alarm volume (CoreAudio `VirtualMainVolume`/`Mute`), restored on stop.
+  `MessageRecorder` (`AVAudioRecorder`) records the message from `MessagePanel`; the mic runs only while recording.
 - **Lock** (shipped): `lockScreen()` = `SACLockScreenImmediate` (private, dlopen). `lock-test` falls back to `pmset displaysleepnow`.
 
 ## Planned layout
@@ -101,6 +103,8 @@ Most of the savings come from the pipeline, not the language.
 | 2026-11-26 | Iris mist = 4 `CAGradientLayer` strips (5% of screen width), not a blurred shadow | Live powermetrics: blurred shadow +13 mW held and >100 mW while scrolling; rasterising it was fragile; strips measured 2–4 mW held vs 1–5 mW baseline |
 | 2026-11-26 | Window levels: overlay `.statusBar`, banner `.statusBar + 1`, NSMenu above | `.screenSaver` would have covered the banner and "Lift for now" |
 | 2026-11-26 | Away audio = computed siren + system voice, no bundled file | Licence-clean by construction; a user-recorded line comes next |
+| 2026-11-26 | Away sound and message play together (tone loops, message over it); levels set by ear: toneGain 0.45, sirenTrim 0.25 | The user wanted them simultaneous; the clipped siren drowned speech at equal gain |
+| 2026-11-26 | Away sound picker = custom-view menu rows that keep the menu open and play 1.5 s per pick; no "Play test" | iPhone alarm-picker feel; a plain NSMenuItem always closes the menu |
 | 2026-11-26 | Away disarm = the screen unlocking (or the menu before a trigger); Guard pauses while armed and resumes after | Unlock needs the owner's password/Touch ID, so it is the explicit disarm |
 | 2026-11-26 | Away fail closed = lock without siren, then Away off; siren only if the lock call is missing | A camera fault is not a looker; never leave an armed Mac unlocked and unwatched |
 | 2026-11-25 | Owner data = `~/Library/Application Support/byaku/owner.json`, 128 floats, overwritten on re-setup, one-click delete | Invariant 5; no image is ever stored |

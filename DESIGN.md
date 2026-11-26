@@ -25,7 +25,7 @@ byaku's UI principles. The full token system is written by `impeccable-documente
    - Alarm: as Alert (the screen is locked).
 
    Off vs Guarding differ by colour only. The user accepted this; the VoiceOver label, status line and camera dot cover it.
-   **Away** (⌘A) sits under Guard, followed by the Alarm volume slider (Control Center style, 25–100%) and "Play test (3 s)"; while armed, Guard (checked), Mode, Banner, Sound and face setup/delete are greyed.
+   **Away** (⌘A) sits under Guard, followed by the Alarm volume slider (Control Center style, 25–100%, silent on release), "Alarm sound ▸" (Siren + macOS sounds; the menu stays open and each pick plays 1.5 s) and "Message…" (record panel); while armed, Guard (checked), Alarm sound, Message, Mode, Banner, Sound and face setup/delete are greyed.
    The last menu section is **Open at login** (a checkmark like Banner/Sound, shown only in `Byaku.app`) then **Quit byaku**.
 10. **Motion.**
     - Anything a trigger opens grows from that trigger.
