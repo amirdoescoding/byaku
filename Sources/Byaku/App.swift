@@ -23,6 +23,13 @@ final class AppController: NSObject, NSMenuDelegate {
     private var errorReason: String?
     private var guardCam: Camera?
 
+    // Guard actions (docs/designs/guard-actions.md). Settings live in UserDefaults; the rest resets per alert.
+    private let defaults = UserDefaults.standard
+    private let banner = BannerPanel(), overlay = WatchOverlay()
+    private var lifted = false, bannerClosed = false  // "Lift for now" / × : until the next separate alert
+    private enum Key { static let mode = "mode", banner = "banner", sound = "sound" }
+    private var mode: Mode { Mode(rawValue: defaults.integer(forKey: Key.mode)) ?? .iris }
+
     private var panel: EnrollPanel?
     private var enrollCam: Camera?
     private var enrollRun = 0  // bumps on cancel/retry so stale callbacks are dropped
@@ -30,6 +37,8 @@ final class AppController: NSObject, NSMenuDelegate {
 
     init(model: String) {
         super.init()
+        defaults.register(defaults: [Key.mode: Mode.iris.rawValue, Key.banner: true, Key.sound: false])
+        banner.onClose = { [weak self] in self?.bannerClosed = true; self?.syncActions() }
         owner = store.load()
         do { embedder = try loadEmbedder(model, units: .cpuAndNeuralEngine).request }  // compile once, reuse per run
         catch { modelError = "face model missing" }
@@ -45,13 +54,26 @@ final class AppController: NSObject, NSMenuDelegate {
     // MARK: state → icon + menu
 
     private func set(_ s: GuardState, reason: String? = nil) {
-        if s == .alert, state != .alert {
+        if s == .alert, state != .alert {  // a new, separate alert
+            lifted = false; bannerClosed = false
+            banner.advance()
+            if defaults.bool(forKey: Key.sound) { NSSound(named: "Submarine")?.play() }  // once, never repeated (§5)
             NSAccessibility.post(element: item.button as Any, notification: .announcementRequested,
                                  userInfo: [.announcement: "Someone else is looking at your screen",
                                             .priority: NSAccessibilityPriorityLevel.high.rawValue])
         }
         state = s; errorReason = s == .error ? reason : nil
         render()
+        syncActions()
+    }
+
+    /// Banner and overlay follow state + settings. Anything that ends an alert (clear, Guard off, error,
+    /// enrollment, delete) goes through set(), so they can't outlive it.
+    private func syncActions() {
+        let on = state == .alert && !lifted
+        if on, defaults.bool(forKey: Key.banner), !bannerClosed, let button = item.button { banner.present(below: button) }
+        else { banner.dismiss() }
+        if on { overlay.show(mode) } else { overlay.hide() }
     }
 
     private func render() {
@@ -75,11 +97,26 @@ final class AppController: NSObject, NSMenuDelegate {
         status.isEnabled = false
         menu.addItem(status)
         if errorReason == "camera access denied" { menu.addItem(entry("Open camera settings…", #selector(openCameraSettings))) }
+        if state == .alert, !lifted { menu.addItem(entry("Lift for now", #selector(liftForNow), key: "l")) }
         menu.addItem(.separator())
         let g = entry("Guard", #selector(toggleGuard), key: "g")
         g.state = guardOn ? .on : .off
         g.isEnabled = owner != nil && enrollCam == nil  // one camera user at a time
         menu.addItem(g)
+        let modes = NSMenu()
+        for m in Mode.allCases {
+            let i = entry(m.title, #selector(pickMode(_:)))
+            if #available(macOS 14.4, *) { i.subtitle = m.subtitle }  // older: the title alone
+            i.tag = m.rawValue
+            i.state = m == mode ? .on : .off
+            modes.addItem(i)
+        }
+        let modeItem = NSMenuItem(title: "Mode", action: nil, keyEquivalent: "")
+        modeItem.submenu = modes
+        menu.addItem(modeItem)
+        let b = entry("Banner", #selector(toggleBanner)); b.state = defaults.bool(forKey: Key.banner) ? .on : .off
+        let snd = entry("Sound", #selector(toggleSound)); snd.state = defaults.bool(forKey: Key.sound) ? .on : .off
+        menu.addItem(b); menu.addItem(snd)
         menu.addItem(.separator())
         menu.addItem(entry(owner == nil ? "Set up face…" : "Set up face again…", #selector(setUpFace), key: "e"))
         let del = entry("Delete face data", #selector(deleteFace))
@@ -95,6 +132,13 @@ final class AppController: NSObject, NSMenuDelegate {
         return i
     }
 
+    // MARK: Guard actions
+
+    @objc private func pickMode(_ sender: NSMenuItem) { defaults.set(sender.tag, forKey: Key.mode); syncActions() }
+    @objc private func toggleBanner() { defaults.set(!defaults.bool(forKey: Key.banner), forKey: Key.banner); syncActions() }
+    @objc private func toggleSound() { defaults.set(!defaults.bool(forKey: Key.sound), forKey: Key.sound) }
+    @objc private func liftForNow() { lifted = true; syncActions() }
+
     // MARK: Guard
 
     @objc private func toggleGuard() { guardOn ? stopGuard() : startGuard() }
@@ -104,13 +148,11 @@ final class AppController: NSObject, NSMenuDelegate {
         guardOn = true
         let cam = Camera(fps: 1)  // 1 fps + embed: ~0.3–0.4 W camera/Vision + ~20–25 mW SFace (ARCHITECTURE power rows)
         cam.embed = embedder
-        var pending: (VNFaceObservation, [Float])?
-        cam.onEmbedding = { pending = ($0, $1) }  // on cam.queue, just before onFaces for the same frame
-        cam.onFaces = { [weak self] faces in
-            let score = pending.map { cosine(unit($0.1), owner) }
-            pending = nil
-            let v = verdict(faces: faces.count, score: score)
-            DispatchQueue.main.async { if self?.guardCam === cam, self?.state != v { self?.set(v) } }
+        var debounce = Debounce()  // fresh per Guard start; touched only on cam.queue
+        cam.onFrame = { [weak self, weak cam] embeddings in  // weak cam: the camera owns this closure
+            let looker = frameHasLooker(embeddings.map { $0.map { cosine(unit($0), owner) } })
+            let v: GuardState = debounce.add(looker) ? .alert : .guarding
+            DispatchQueue.main.async { if let cam, self?.guardCam === cam, self?.state != v { self?.set(v) } }
         }
         guardCam = cam
         set(.guarding)
@@ -173,11 +215,11 @@ final class AppController: NSObject, NSMenuDelegate {
         }
         var pending: (VNFaceObservation, [Float])?, frames: [[Float]] = [], started = false, several = false
         cam.onEmbedding = { pending = ($0, $1) }
-        cam.onFaces = { [weak self] faces in  // cam.queue
+        cam.onFaces = { [weak self, weak cam] faces in  // cam.queue; weak cam: the camera owns this closure
             defer { pending = nil }
             if !started {
                 started = true
-                DispatchQueue.main.async { self?.countdown(run: run, cam: cam, from: seconds) { frames } }
+                DispatchQueue.main.async { if let cam { self?.countdown(run: run, cam: cam, from: seconds) { frames } } }
             }
             if faces.count >= 2, !several { several = true; DispatchQueue.main.async { self?.finish(run, .severalFaces) } }
             if let v = countedEmbedding(faces, pending) { frames.append(v) }
@@ -223,7 +265,10 @@ final class AppController: NSObject, NSMenuDelegate {
         if guardOn, guardCam == nil, owner != nil { startGuard() }
     }
 
-    @objc private func screenLocked() { if panel?.isVisible == true { endEnrollment() } }
+    @objc private func screenLocked() {
+        if panel?.isVisible == true { endEnrollment() }
+        if state == .alert { lifted = true; syncActions() }  // nothing to shield behind the lock screen
+    }
 
     // MARK: other actions
 

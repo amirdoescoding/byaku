@@ -38,6 +38,33 @@
         ],
         "createdAt": "2026-11-25T22:25:04.676Z",
         "reason": "assistant: mockup imitates the macOS menu bar/menu metrics, which AppKit draws in the app"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "design/guard/mockups.html"
+        ],
+        "createdAt": "2026-11-25T23:29:16.553Z",
+        "reason": "user confirmed 2026-11-26: Iris level = soft violet edge shadow (edge style A), the one sanctioned violet glow, spec guard-actions.md §4"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "design/guard/mockups.html"
+        ],
+        "createdAt": "2026-11-25T23:29:16.566Z",
+        "reason": "mockup fixture, same as design/menubar/mockups.html: native disabled menu rows and placeholder text bars under the dim/edge overlay that is meant to obscure them"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/guard/mockups.html"
+        ],
+        "createdAt": "2026-11-25T23:29:16.579Z",
+        "reason": "mockup fixture, same as design/menubar/mockups.html: faux menu-bar strip and menu rows drawn at native macOS metrics"
       }
     ]
   }

@@ -95,9 +95,10 @@ func cg(_ c: NSColor, in v: NSView) -> CGColor {
 }
 
 /// Explicit layer animation (backing layers of NSViews don't animate implicitly).
-func animate(_ layer: CALayer, _ key: String, to value: Any, duration: Double, timing: CAMediaTimingFunction = Tokens.Motion.easeOut) {
+/// `from`: pass it when the start value was set in this same run-loop turn; presentation() still shows the old frame.
+func animate(_ layer: CALayer, _ key: String, from: Any? = nil, to value: Any, duration: Double, timing: CAMediaTimingFunction = Tokens.Motion.easeOut) {
     let a = CABasicAnimation(keyPath: key)
-    a.fromValue = layer.presentation()?.value(forKeyPath: key) ?? layer.value(forKeyPath: key)  // start from what's on screen
+    a.fromValue = from ?? layer.presentation()?.value(forKeyPath: key) ?? layer.value(forKeyPath: key)  // start from what's on screen
     a.toValue = value
     a.duration = duration
     a.timingFunction = timing
@@ -192,7 +193,7 @@ final class ProgressRing: NSView {
 
 /// The only button on custom surfaces: hover tint, press scale on mouse-down, violet focus ring.
 final class PanelButton: NSButton {
-    enum Role { case primary, secondary }
+    enum Role { case primary, secondary, close }  // close: a 24 pt × with no border (banner)
     let role: Role
     private let onPress: () -> Void
     private var hovering = false
@@ -208,9 +209,15 @@ final class PanelButton: NSButton {
         layer!.masksToBounds = false
         focus.fillColor = nil; focus.lineWidth = 2; focus.isHidden = true
         layer!.addSublayer(focus)
-        let w = max(80, ceil(attributedTitle.size().width) + 28)
-        setFrameSize(NSSize(width: w, height: 32))
-        setAccessibilityLabel(title)
+        if role == .close {
+            image = NSImage(systemSymbolName: "xmark", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 10, weight: .semibold))
+            imagePosition = .imageOnly
+            setFrameSize(NSSize(width: 24, height: 24))
+        } else {
+            setFrameSize(NSSize(width: max(80, ceil(attributedTitle.size().width) + 28), height: 32))
+        }
+        setAccessibilityLabel(role == .close ? "Close" : title)
         restyle(animated: false)  // the title didSet ran before the layer existed
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -233,6 +240,7 @@ final class PanelButton: NSButton {
         attributedTitle = NSAttributedString(string: title, attributes: [
             .font: NSFont.systemFont(ofSize: 13, weight: .medium), .foregroundColor: text,
             .paragraphStyle: { let p = NSMutableParagraphStyle(); p.alignment = .center; return p }()])
+        contentTintColor = text  // the close role's symbol
         guard let l = layer else { return }
         focus.strokeColor = cg(Tokens.accent, in: self)
         if animated {
@@ -256,6 +264,10 @@ final class PanelButton: NSButton {
             let line = Tokens.line.usingColorSpace(.sRGB)!
             border = hovering ? line.blended(withFraction: 0.22, of: ink) ?? line : line
             text = ink
+        case .close:
+            fill = hovering ? ink.withAlphaComponent(0.06) : .clear
+            border = .clear
+            text = hovering ? ink : Tokens.mute.usingColorSpace(.sRGB)!
         }
         return (fill, border, text)
     }
@@ -285,6 +297,8 @@ final class PanelButton: NSButton {
     private func superClick(_ sender: Any?) { super.performClick(sender) }
 
     override var acceptsFirstResponder: Bool { true }
+    /// Click through on first press: the banner never becomes key and the accessory app is never active.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func becomeFirstResponder() -> Bool {
         focus.isHidden = NSApp.currentEvent?.type != .keyDown  // focus = seen: only when the keyboard put it here
         return super.becomeFirstResponder()
@@ -292,29 +306,70 @@ final class PanelButton: NSButton {
     override func resignFirstResponder() -> Bool { focus.isHidden = true; return super.resignFirstResponder() }
 }
 
+// MARK: - AnchoredPanel
+
+/// A borderless panel that grows from its trigger (the status item) and shrinks back into it (menubar.md §5).
+class AnchoredPanel: NSPanel {
+    private var origin = CGPoint.zero  // the trigger, in content coordinates
+
+    init(size: NSSize, level: NSWindow.Level) {
+        super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel],
+                   backing: .buffered, defer: false)
+        isFloatingPanel = true; self.level = level; hidesOnDeactivate = false
+        backgroundColor = .clear; isOpaque = false; hasShadow = true
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]  // show on the Space the user is on
+        isReleasedWhenClosed = false
+        contentView = SurfaceView(frame: NSRect(origin: .zero, size: size))
+    }
+
+    func present(below button: NSStatusBarButton) {
+        guard let bw = button.window, let screen = bw.screen ?? NSScreen.main else { return }
+        let icon = bw.convertToScreen(button.convert(button.bounds, to: nil))
+        let vis = screen.visibleFrame
+        let x = min(max(icon.midX - frame.width / 2, vis.minX + 8), vis.maxX - 8 - frame.width)
+        setFrameOrigin(NSPoint(x: x, y: icon.minY - 8 - frame.height))
+        origin = CGPoint(x: icon.midX - x, y: frame.height + 8)  // the icon's bottom centre, just above the panel
+        let l = contentView!.layer!
+        if isVisible, alphaValue == 1 { if canBecomeKey { makeKey() }; return }
+        alphaValue = 0
+        let start = Tokens.Motion.reduced ? CATransform3DIdentity : scale(Tokens.Motion.enterScale, about: origin)
+        l.transform = start
+        orderFrontRegardless(); if canBecomeKey { makeKey() }
+        NSAnimationContext.runAnimationGroup { c in
+            c.duration = Tokens.Motion.enter; c.timingFunction = Tokens.Motion.easeOut
+            animator().alphaValue = 1
+        }
+        animate(l, "transform", from: start, to: CATransform3DIdentity, duration: Tokens.Motion.enter)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.enter) { [weak self] in self?.invalidateShadow() }
+    }
+
+    /// Shrink back into the icon, then order out.
+    func dismiss() {
+        guard isVisible else { return }
+        if !Tokens.Motion.reduced { animate(contentView!.layer!, "transform", to: scale(Tokens.Motion.enterScale, about: origin), duration: Tokens.Motion.exit) }
+        NSAnimationContext.runAnimationGroup({ c in
+            c.duration = Tokens.Motion.exit; c.timingFunction = Tokens.Motion.easeOut
+            animator().alphaValue = 0
+        }, completionHandler: { [weak self] in if self?.alphaValue == 0 { self?.orderOut(nil) } })
+    }
+}
+
 // MARK: - EnrollPanel
 
 /// Set-up-face panel. Grows from its trigger (the status item) and shrinks back into it. No camera preview, ever.
-final class EnrollPanel: NSPanel {
+final class EnrollPanel: AnchoredPanel {
     enum Phase: Equatable { case starting, counting(Int), saved, noFace, severalFaces, cameraDenied, failed(String) }
 
     var onCancel: () -> Void = {}, onRetry: () -> Void = {}, onOpenSettings: () -> Void = {}
     private let ring = ProgressRing(frame: NSRect(x: 24, y: 84, width: 48, height: 48))
     private let titleLabel = NSTextField(labelWithString: ""), body = NSTextField(wrappingLabelWithString: "")
     private var buttons: [PanelButton] = []
-    private var origin = CGPoint.zero  // the trigger, in content coordinates
     private var autoClose: DispatchWorkItem?
 
     init() {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 320, height: 160), styleMask: [.borderless, .nonactivatingPanel],
-                   backing: .buffered, defer: false)
-        isFloatingPanel = true; level = .statusBar; hidesOnDeactivate = false
-        backgroundColor = .clear; isOpaque = false; hasShadow = true
-        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]  // show on the Space the user is on
-        isReleasedWhenClosed = false
+        super.init(size: NSSize(width: 320, height: 160), level: .statusBar)
         setAccessibilityTitle("Set up face")
-        let v = SurfaceView(frame: NSRect(x: 0, y: 0, width: 320, height: 160))
-        contentView = v
+        let v = contentView!
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         titleLabel.frame = NSRect(x: 88, y: 116, width: 208, height: 20)
         body.font = .systemFont(ofSize: 12); body.maximumNumberOfLines = 2
@@ -323,40 +378,10 @@ final class EnrollPanel: NSPanel {
     }
 
     override var canBecomeKey: Bool { true }  // Esc and VoiceOver; nonactivating, so the user's app keeps focus
+    override func dismiss() { autoClose?.cancel(); super.dismiss() }
     /// Esc presses the visible Cancel/Done button, so it gets the same press feedback.
     override func cancelOperation(_ sender: Any?) {
         if let b = buttons.first(where: { $0.title == "Cancel" || $0.title == "Done" }) { b.performClick(nil) } else { onCancel() }
-    }
-
-    func present(below button: NSStatusBarButton) {
-        guard let bw = button.window, let screen = bw.screen ?? NSScreen.main else { return }
-        let icon = bw.convertToScreen(button.convert(button.bounds, to: nil))
-        let vis = screen.visibleFrame
-        let x = min(max(icon.midX - 160, vis.minX + 8), vis.maxX - 8 - 320)
-        setFrameOrigin(NSPoint(x: x, y: icon.minY - 8 - 160))
-        origin = CGPoint(x: icon.midX - x, y: 160 + 8)  // the icon's bottom centre, just above the panel
-        let l = contentView!.layer!
-        if isVisible, alphaValue == 1 { makeKey(); return }
-        alphaValue = 0
-        l.transform = Tokens.Motion.reduced ? CATransform3DIdentity : scale(Tokens.Motion.enterScale, about: origin)
-        orderFrontRegardless(); makeKey()
-        NSAnimationContext.runAnimationGroup { c in
-            c.duration = Tokens.Motion.enter; c.timingFunction = Tokens.Motion.easeOut
-            animator().alphaValue = 1
-        }
-        animate(l, "transform", to: CATransform3DIdentity, duration: Tokens.Motion.enter)
-        DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.enter) { [weak self] in self?.invalidateShadow() }
-    }
-
-    /// Shrink back into the icon, then order out.
-    func dismiss() {
-        autoClose?.cancel()
-        guard isVisible else { return }
-        if !Tokens.Motion.reduced { animate(contentView!.layer!, "transform", to: scale(Tokens.Motion.enterScale, about: origin), duration: Tokens.Motion.exit) }
-        NSAnimationContext.runAnimationGroup({ c in
-            c.duration = Tokens.Motion.exit; c.timingFunction = Tokens.Motion.easeOut
-            animator().alphaValue = 0
-        }, completionHandler: { [weak self] in if self?.alphaValue == 0 { self?.orderOut(nil) } })
     }
 
     func show(_ p: Phase) {

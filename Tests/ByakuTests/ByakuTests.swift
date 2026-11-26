@@ -27,10 +27,39 @@ func parseFPSRejectsGarbage(input: String) {
     for (a, b) in [(m.a, t.a), (m.b, t.b), (m.c, t.c), (m.d, t.d), (m.tx, t.tx), (m.ty, t.ty)] { #expect(abs(a - b) < 1e-9) }
 }
 
-@Test(arguments: [(0, nil, GuardState.guarding), (1, Float(0.9), .guarding), (1, Float(0.1), .alert), (1, nil, .guarding),
-                  (2, Float(0.9), .alert), (3, nil, .alert)] as [(Int, Float?, GuardState)])
-func verdictRules(faces: Int, score: Float?, expected: GuardState) {
-    #expect(verdict(faces: faces, score: score) == expected)
+@Test(arguments: [(0, 0, true), (0.52, 0, true), (-0.52, 0.43, true), (0.53, 0, false), (0, -0.44, false)] as [(Float, Float, Bool)])
+func gazeGate(yaw: Float, pitch: Float, facing: Bool) {
+    #expect(facesScreen(yaw: yaw, pitch: pitch) == facing)
+}
+
+@Test func gazeGateMissingPoseCountsAsFacing() { #expect(facesScreen(yaw: nil, pitch: nil)) }
+
+@Test(arguments: [([], false), ([0.9], false), ([0.1], true), ([nil], false),  // lone unembeddable face fails open
+                  ([0.9, 0.9], false), ([0.9, 0.1], true), ([0.9, nil], true), ([nil, nil], true)] as [([Float?], Bool)])
+func lookerRules(scores: [Float?], looker: Bool) {
+    #expect(frameHasLooker(scores) == looker)
+}
+
+@Test func debounceFiresOnTwoOfThreeAndClearsAfterThree() {
+    func run(_ frames: [Bool]) -> [Bool] { var d = Debounce(); return frames.map { d.add($0) } }
+    #expect(run([true, false, false, false]) == [false, false, false, false])      // one stray frame never fires
+    #expect(run([true, false, true]) == [false, false, true])                       // 2 of 3
+    #expect(run([true, true, false, false, false]) == [false, true, true, true, false])  // clears after 3 clean
+    #expect(run([true, true, false, false, true, false, false, false]).last == false)
+    #expect(run([true, true, false, false, true, false, false]) == [false, true, true, true, true, true, true])  // a looker resets the clear count
+}
+
+@Test func modeRawValuesAndLadderArePinned() {
+    #expect(Mode.allCases.map(\.rawValue) == [0, 1, 2, 3])  // persisted in UserDefaults "mode"
+    #expect(Mode.allCases.map(\.edges) == [false, true, false, true])
+    #expect(Mode.allCases.map(\.dim) == [false, false, true, true])
+}
+
+@Test func ownerStoreRejectsWrongLength() throws {
+    let s = OwnerStore(url: FileManager.default.temporaryDirectory.appendingPathComponent("byaku-test-\(UUID())/owner.json"))
+    try s.save([1, 2, 3])
+    #expect(s.load() == nil)
+    try s.delete()
 }
 
 @Test func ownerTemplateIsUnitMean() {
@@ -42,8 +71,9 @@ func verdictRules(faces: Int, score: Float?, expected: GuardState) {
 @Test func ownerStoreRoundTripAndDelete() throws {
     let s = OwnerStore(url: FileManager.default.temporaryDirectory.appendingPathComponent("byaku-test-\(UUID())/owner.json"))
     #expect(s.load() == nil)
-    try s.save([0.5, -0.25])
-    #expect(s.load() == [0.5, -0.25])
+    let v = (0..<128).map { Float($0) / 128 - 0.5 }  // a real template is 128 SFace floats
+    try s.save(v)
+    #expect(s.load() == v)
     try s.delete()
     #expect(s.load() == nil)
     try s.delete()  // deleting twice is fine

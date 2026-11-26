@@ -11,9 +11,18 @@ enum Tokens {
     /// Violet means *seen*: the eye is open (guarding, alert) and keyboard focus. Never decoration.
     static let accent = dynamic(light: 0x6A5DB8, dark: 0xC8BFEF)
 
+    /// Guard overlay (docs/designs/guard-actions.md §4). Iris is the one sanctioned violet gradient: `accent` strips fading in from every edge.
+    enum Overlay {
+        static let dimAlpha: CGFloat = 0.40, edgeAlpha: Float = 0.70
+        /// Iris mist depth = × screen width in pt (96 pt on a 1920 pt display, 72 on a 1440 pt laptop).
+        static let edgeDepth: CGFloat = 0.05
+        /// Mist falloff from the edge inward (location 0 = edge, 1 = inner side): eased so it reads as mist, not a band.
+        static let mist: [(at: CGFloat, alpha: CGFloat)] = [(0, 1), (0.2, 0.62), (0.45, 0.3), (0.7, 0.1), (1, 0)]
+    }
+
     enum Motion {
         static let enter = 0.20, exit = 0.15, hover = 0.12, press = 0.10, release = 0.16, check = 0.24
-        static let spinTurn = 0.6, countStep = 1.0, autoClose = 3.0, startTimeout = 4.0
+        static let edgeIn = 0.28, spinTurn = 0.6, countStep = 1.0, autoClose = 3.0, startTimeout = 4.0
         static let pressScale: CGFloat = 0.97, enterScale: CGFloat = 0.96
         /// Strong ease-out. No ease-in anywhere: feedback must start fast.
         static var easeOut: CAMediaTimingFunction { CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1) }

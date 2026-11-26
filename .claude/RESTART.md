@@ -1,7 +1,8 @@
 # Restart
 
-**2026-11-25**: PR5 `feat/menubar-app` is open: menu-bar app skeleton + face setup. Waiting for the user to merge.
-Spec: `docs/designs/menubar.md`. Mockups: `design/menubar/`. Run with `.build/debug/byaku app ml/models/sface.mlpackage`.
+**2026-11-26**: PR6 `feat/guard-actions` is open as #7 (https://github.com/amirdoescoding/byaku/pull/7), review fixes committed and live-checked: gaze gate + per-face match + 2-of-3 debounce, banner, Mode ladder
+(Whisper/Iris/Shade/Awaken), Iris mist/dim overlay, Lift for now, sound toggle. Spec `docs/designs/guard-actions.md`, mockups `design/guard/`.
+Run with `.build/debug/byaku app ml/models/sface.mlpackage`.
 
-Next session (after `/clear`), pick from `.claude/TODOS.md` "Next": the Guard actions (banner/dim) + debounce policy, the `.app` bundle,
-or the yawed-face owner match.
+Next session (after `/clear`), pick from `.claude/TODOS.md` "Next": the `.app` bundle, the yaw/pitch granularity check + gate tuning
+with a second person, or the yawed-face owner match.
