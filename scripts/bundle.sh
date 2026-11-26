@@ -1,5 +1,7 @@
 #!/bin/sh
-# Builds build/Byaku.app (arm64, ad-hoc signed). No Xcode needed. Run from anywhere.
+# Builds build/Byaku.app (arm64). No Xcode needed. Run from anywhere.
+# Signs with the local `byaku dev` identity (scripts/dev-identity.sh) if present, else ad-hoc.
+#   BYAKU_VERSION=0.2.0 scripts/bundle.sh   stamps that version into the bundled Info.plist (release CI)
 #   scripts/bundle.sh --install   also copies it to ~/Applications and (re)opens it
 set -eu
 cd "$(dirname "$0")/.."
@@ -14,12 +16,16 @@ rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp .build/release/Byaku "$app/Contents/MacOS/"
 cp app/Info.plist "$app/Contents/"
-cp app/AppIcon.icns "$app/Contents/Resources/"
+cp app/AppIcon.icns THIRD_PARTY_NOTICES "$app/Contents/Resources/"
 cp -R "$model" "$app/Contents/Resources/"
-# Sign last so Info.plist and resources are sealed. Ad-hoc: TCC is tied to the cdhash, so a rebuild may re-prompt
-# (tccutil reset Camera dev.byaku.app). No hardened runtime, so no camera entitlement is needed.
-codesign --force --sign - "$app"
-echo "built $app; run: open $app"
+[ -n "${BYAKU_VERSION:-}" ] && plutil -replace CFBundleShortVersionString -string "$BYAKU_VERSION" "$app/Contents/Info.plist"
+# Sign last so Info.plist and resources are sealed. With `byaku dev`, TCC keys on the certificate, so rebuilds keep the
+# camera grant. Ad-hoc keys on the cdhash, so a rebuild may re-prompt (tccutil reset Camera dev.byaku.app).
+# No hardened runtime, so no camera entitlement is needed.
+identity=-
+security find-identity -v -p codesigning 2>/dev/null | grep -q '"byaku dev"' && identity="byaku dev"
+codesign --force --sign "$identity" "$app"
+echo "built $app (signed: $identity); run: open $app"
 if [ "${1:-}" = "--install" ]; then
     # Quit only the installed app, by bundle id: a terminal `byaku detect` or power run keeps going.
     osascript -e 'if application id "dev.byaku.app" is running then tell application id "dev.byaku.app" to quit' >/dev/null 2>&1 || true  # unknown id on a first install: ignore
