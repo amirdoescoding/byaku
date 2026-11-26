@@ -20,13 +20,13 @@ enum Tokens {
         static let mist: [(at: CGFloat, alpha: CGFloat)] = [(0, 1), (0.2, 0.62), (0.45, 0.3), (0.7, 0.1), (1, 0)]
     }
 
-    /// Away (docs/designs/away-mode.md). Not motion: arming countdown, the camera-stall limit, the tone/message cycle, recording.
+    /// Away (docs/designs/away-mode.md). Not motion: arming countdown, the camera-stall limit, the pause between message repeats, recording.
     enum Away {
-        static let armSeconds = 5, stallLimit = 10.0, watchdog = 5.0, sirenSeconds = 3.0, lockCheck = 1.0
+        static let armSeconds = 5, stallLimit = 10.0, watchdog = 5.0, messageGap = 1.0, lockCheck = 1.0
         /// A sound picked in the Alarm sound menu plays this long at the slider level (iPhone alarm picker style).
         static let pickSeconds = 1.5
-        /// Tone level against the message (mixer gain, 0…1). Speech and recordings are far quieter than the clipped siren
-        /// at the same output volume; set by ear on hardware. Recording cap, and the shortest take that counts as a message.
+        /// Tone level under the message (mixer gain, 0…1): they play together, and speech is far quieter than the clipped
+        /// siren at the same output volume. Set by ear on hardware. Recording cap, and the shortest take that counts as a message.
         static let toneGain: Float = 0.35, messageSeconds = 8.0, minMessageSeconds = 0.5
         /// With VoiceOver on, the mic starts after "Recording, speak now" has been said, so it isn't in the take.
         static let voiceOverLead = 2.5

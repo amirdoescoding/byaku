@@ -25,8 +25,8 @@ func siren(_ t: Double) -> Float {
     return Float(tanh(3 * sin(2 * .pi * f * t)) * 0.9)
 }
 
-/// The alarm tone (the siren, or the picked system sound) for `Tokens.Away.sirenSeconds`, then the message (the user's
-/// recording, else the spoken line), then again, until stop(). While it plays the default output is unmuted at the alarm
+/// The alarm tone (the siren, or the picked system sound) loops from the first moment, and the message (the user's
+/// recording, else the spoken line) plays over it, then again every `Tokens.Away.messageGap` after it ends, until stop(). While it plays the default output is unmuted at the alarm
 /// volume; stop() puts both back.
 final class Alarm: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
     static let line = "byaku spotted a threat!"
@@ -44,7 +44,7 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate 
     private var msg: AVAudioPlayer?  // the recording while it plays
     private var t = 0.0  // render thread only
     private var saved: (device: AudioObjectID, volume: Float32?, mute: UInt32?)?
-    private var run = 0  // bumps on stop so a pending tone → message hand-off is dropped
+    private var run = 0  // bumps on stop so a pending repeat of the message is dropped
     private var inTone = false
     private(set) var playing = false
     private var testing = false  // a preview: tone only, and a real alarm takes over from it
@@ -116,10 +116,13 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate 
         guard playing, r == run else { return }
         inTone = true
         startTone()
-        DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Away.sirenSeconds) { [weak self] in
+        if !testing { speak() }  // together with the tone, not after it
+    }
+
+    /// The message ended: say it again after a breath, over the tone that keeps going.
+    private func again(_ r: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Away.messageGap) { [weak self] in
             guard let self, self.playing, !self.testing, r == self.run else { return }
-            self.inTone = false
-            self.engine?.pause()
             self.speak()
         }
     }
@@ -142,14 +145,14 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate 
 
     func speechSynthesizer(_ s: AVSpeechSynthesizer, didFinish u: AVSpeechUtterance) {
         let r = run
-        DispatchQueue.main.async { [weak self] in self?.cycle(r) }
+        DispatchQueue.main.async { [weak self] in self?.again(r) }
     }
 
     func audioPlayerDidFinishPlaying(_ p: AVAudioPlayer, successfully: Bool) {
         DispatchQueue.main.async { [weak self] in
             guard let self, p === self.msg else { return }  // stop() clears msg: a late callback is dropped
             self.msg = nil
-            if self.testing { let d = self.previewDone; self.stop(); d?() } else { self.cycle(self.run) }
+            if self.testing { let d = self.previewDone; self.stop(); d?() } else { self.again(self.run) }
         }
     }
 
