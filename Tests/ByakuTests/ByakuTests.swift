@@ -159,3 +159,18 @@ func awayLookerRules(scores: [Float?], looker: Bool) {
     #expect(try read() == "three")
     try s.delete(); #expect(!s.exists)
 }
+
+@Test func onboardingSoundsStayQuietAndShort() {
+    for k in [Sfx.Kind.whooshIn, .whooshOut, .browUp, .browDown] {
+        let s = Sfx.samples(k)
+        #expect(!s.isEmpty && s.count <= Sfx.rate / 2)
+        #expect(s.allSatisfy { $0.isFinite && abs($0) <= Tokens.Onboarding.whooshLevel + 1e-6 })
+    }
+    let w = Sfx.wav(Sfx.samples(.browUp))
+    #expect(w.prefix(4) == Data("RIFF".utf8) && w.count == 44 + Sfx.samples(.browUp).count * 2)
+}
+
+@Test func wordmarkPathFillsItsViewBox() {
+    let b = svgPath(WordmarkView.d).boundingBoxOfPath, v = WordmarkView.box
+    #expect(abs(b.minX - v.minX) < 1 && abs(b.maxX - v.maxX) < 1 && abs(b.minY - v.minY) < 1 && abs(b.maxY - v.maxY) < 1)
+}

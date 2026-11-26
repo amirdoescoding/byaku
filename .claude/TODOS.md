@@ -20,9 +20,13 @@
 
 ## Onboarding (after the MVP works end to end and the devops is done)
 
-- [ ] Guided face scan UI: byaku scans the owner's face (progress, angles) instead of the bare "Set up face…"
-- [ ] Step-by-step onboarding in a top-right panel that explains each menu option
-- [ ] Closing video after setup: the author introduces themself, thanks the user, invites contributions (bundled, offline)
+- [x] Step-by-step onboarding: real-menu tour with a coach bubble + mascot (PR12 `feat/onboarding`)
+- [x] Closing video after setup: founder clip with lockup intro/outro (bundled, offline)
+- [ ] **PR B: guided face scan**: circular live preview (never saved), progress ring, straight/left/right prompts, template
+  averaged across poses (also the yawed-match gap). Pre-register the margin bar first. User OK'd the preview (2026-11-26)
+- [ ] Onboarding: VoiceOver pass on hardware (bubble announcements while the menu is open; video label)
+- [ ] Onboarding: unvisited-row dots were cut (native NSMenu can't draw in its gutter); revisit only if the count isn't enough
+- [ ] Install `impeccable-finish-reviewer` / `impeccable-documenter` agents (CLAUDE.md names them; they aren't installed)
 
 ## Pipeline
 

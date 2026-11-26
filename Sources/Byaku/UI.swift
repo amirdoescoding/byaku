@@ -70,7 +70,7 @@ enum StatusIcon {
         crescent(NSPoint(x: 40.500, y: 17.278), NSPoint(x: 47.975, y: 37.814), back: 100.374),
     ]
 
-    private static func crescent(_ a: NSPoint, _ b: NSPoint, back r: CGFloat) -> NSBezierPath {
+    static func crescent(_ a: NSPoint, _ b: NSPoint, back r: CGFloat) -> NSBezierPath {
         let p = NSBezierPath()
         p.move(to: a)
         svgArc(p, from: a, to: b, r: 17, sweep: true)
@@ -434,19 +434,29 @@ final class EnrollPanel: CardPanel {
 
     override func dismiss() { autoClose?.cancel(); super.dismiss() }
 
+    /// Title and body per phase; the onboarding window shows the same words.
+    static func copy(_ p: Phase) -> (String, String) {
+        switch p {
+        case .starting: ("Starting camera…", "")
+        case .counting: ("Look at the screen", "Be the only person in view. Nothing is saved except a face print.")
+        case .saved: ("Face saved", "Stored on this Mac only. Delete it any time from the menu.")
+        case .noFace: ("No face seen", "Face the screen in good light, then try again.")
+        case .severalFaces: ("More than one face", "Only you should be in view. Try again when you're alone.")
+        case .cameraDenied: ("Camera access is off", "Allow byaku in System Settings, then try again.")
+        case .failed(let why): ("Couldn't set up face", why)
+        }
+    }
+
     func show(_ p: Phase) {
         autoClose?.cancel()
         let cancel = ("Cancel", PanelButton.Role.secondary, onCancel), retry = ("Try again", PanelButton.Role.primary, onRetry)
-        let (ringPhase, title, text, specs): (ProgressRing.Phase, String, String, [Spec]) = switch p {
-        case .starting: (.starting, "Starting camera…", "", [cancel])
-        case .counting(let r): (.counting(remaining: r), "Look at the screen",
-                                "Be the only person in view. Nothing is saved except a face print.", [cancel])
-        case .saved: (.done, "Face saved", "Stored on this Mac only. Delete it any time from the menu.", [("Done", .primary, onCancel)])
-        case .noFace: (.failed, "No face seen", "Face the screen in good light, then try again.", [cancel, retry])
-        case .severalFaces: (.failed, "More than one face", "Only you should be in view. Try again when you're alone.", [cancel, retry])
-        case .cameraDenied: (.failed, "Camera access is off", "Allow byaku in System Settings, then try again.",
-                             [cancel, ("Open camera settings…", .primary, onOpenSettings)])
-        case .failed(let why): (.failed, "Couldn't set up face", why, [cancel, retry])
+        let (title, text) = Self.copy(p)
+        let (ringPhase, specs): (ProgressRing.Phase, [Spec]) = switch p {
+        case .starting: (.starting, [cancel])
+        case .counting(let r): (.counting(remaining: r), [cancel])
+        case .saved: (.done, [("Done", .primary, onCancel)])
+        case .noFace, .severalFaces, .failed: (.failed, [cancel, retry])
+        case .cameraDenied: (.failed, [cancel, ("Open camera settings…", .primary, onOpenSettings)])
         }
         let announce: String? = switch p {
         case .starting: nil
@@ -520,7 +530,7 @@ final class MessagePanel: CardPanel {
 }
 
 /// Panel surface: `surface` fill, 1 pt `line` border, 12 pt radius.
-private final class SurfaceView: NSView {
+final class SurfaceView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true

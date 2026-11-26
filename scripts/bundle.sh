@@ -16,7 +16,7 @@ rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp .build/release/Byaku "$app/Contents/MacOS/"
 cp app/Info.plist "$app/Contents/"
-cp app/AppIcon.icns THIRD_PARTY_NOTICES "$app/Contents/Resources/"
+cp app/AppIcon.icns app/founder.mp4 THIRD_PARTY_NOTICES "$app/Contents/Resources/"
 cp -R "$model" "$app/Contents/Resources/"
 [ -n "${BYAKU_VERSION:-}" ] && plutil -replace CFBundleShortVersionString -string "$BYAKU_VERSION" "$app/Contents/Info.plist"
 # Sign last so Info.plist and resources are sealed. With `byaku dev`, TCC keys on the certificate, so rebuilds keep the

@@ -39,6 +39,36 @@ enum Tokens {
         static let knobGlyph = NSColor.black.withAlphaComponent(0.85)
     }
 
+    /// Onboarding (docs/designs/onboarding.md, prototype design/onboarding/motion.html). Springs are CASpringAnimation (mass 1).
+    enum Onboarding {
+        struct Spring { let stiffness: CGFloat, damping: CGFloat }
+        static let raise = Spring(stiffness: 380, damping: 22), frown = Spring(stiffness: 220, damping: 28)
+        static let focus = Spring(stiffness: 260, damping: 30), look = Spring(stiffness: 300, damping: 26)
+        static let neutral = Spring(stiffness: 300, damping: 26), snap = Spring(stiffness: 6000, damping: 155)
+        static let fly = Spring(stiffness: 340, damping: 32), flyY = Spring(stiffness: 260, damping: 28)
+        static let flyScale = Spring(stiffness: 380, damping: 36), follow = Spring(stiffness: 300, damping: 30)
+        /// Blink: one keyframe this long; idle blinks every blinkEvery…+blinkJitter s.
+        static let blinkTime = 0.2, blinkEvery = 2.0, blinkJitter = 1.5
+        /// Stressed (tour, no hover): a pose every stressStep s, stressSteps times, then a frown.
+        static let stressStep = 0.15, stressSteps = 8
+        /// Intro (seconds from start): ring draws, blades wake (fade), blink, wordmark rises, hold, then the mark flies to the corner.
+        static let ringDraw = 0.52, bladesAt = 0.18, bladesFade = 0.16, blinkAt = 0.64, wordAt = 0.56, wordRise = 0.32
+        static let hold = 1.5, wordOut = 0.15, frameIn = 0.32, frameDelay = 0.06
+        /// Outro (seconds from the video's end): scrim settles, the mark returns, smiles, the thanks card arrives.
+        static let scrim = 0.36, scrimAlpha: CGFloat = 0.92, backAt = 0.12, smileAt = 0.52, smileHold = 0.74
+        static let thanksAt = 0.64, buttonStagger = 0.06, textRise = 0.26
+        /// Tour: the menu opens this long after the flight starts; the bubble sits this far left of the menu.
+        static let menuAfter = 0.25, bubbleGap: CGFloat = 14, locate = 0.05
+        /// Tour: seconds without a hover before the mascot gets stressed.
+        static let impatient = 6.0
+        /// Tour: if no menu has opened this long after opening it, end onboarding rather than hang invisible.
+        static let menuCheck = 1.0
+        /// Synthesised sounds (Sfx): peak level 0…1 and lengths.
+        static let whooshLevel: Float = 0.22, flickLevel: Float = 0.16, whoosh = 0.42, flick = 0.07
+        /// Mark colour change (accent ↔ ink at the video's corner) and the window fade while the tour is on the menu.
+        static let recolor = 0.3, windowFade = 0.15, idleAfter = 1.2
+    }
+
     enum Motion {
         static let enter = 0.20, exit = 0.15, hover = 0.12, press = 0.10, release = 0.16, check = 0.24
         static let edgeIn = 0.28, spinTurn = 0.6, countStep = 1.0, autoClose = 3.0, startTimeout = 4.0

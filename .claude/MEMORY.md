@@ -44,3 +44,13 @@
   only, because the clipped square was far louder than the system sounds at the same gain. A sound-picker row is a custom NSMenuItem view
   (`SoundRow`): a plain item always closes the menu, and the user wanted iPhone-style pick-and-hear. The user dropped "Play test". The message
   is `Application Support/byaku/message.m4a`, and the mic runs only while recording.
+- 2026-11-26 PR12 onboarding: welcome → face → tour on the REAL menu (coach bubble in a click-through panel at `.popUpMenu + 1`,
+  driven by NSMenuDelegate `willHighlight` + the pointer's y) → founder video with a lockup intro/outro. The mark is the mascot
+  (blades = eyebrows). Sounds synthesised (Epidemic can't ship in MIT). Launch/marketing videos use Remotion + three.js; the
+  app stays native Core Animation.
+- AppKit gotchas from PR12: an accessory app's `NSApp.activate()` doesn't beat the front app (macOS 14) → onboarding window is
+  `.floating`. While an NSMenu is open, `DispatchQueue.main.asyncAfter` blocks didn't run but `.common` Timers did → animations
+  that must run during the tour are single keyframes or common-mode Timers. A hidden, re-added layer-backed view can lose a layer
+  transform → place resting views by frame, use transforms only for motion. Build full-screen overlays ahead (first composite stutters).
+- Synthetic mouse events (CGEvent post) trigger the Accessibility prompt; the user denied it. Verify UI by screenshot
+  (`screencapture` works now) + the user walking through it.
