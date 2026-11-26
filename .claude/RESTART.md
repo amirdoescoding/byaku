@@ -1,6 +1,6 @@
 # Restart
 
-**2026-11-26**: PR6 `feat/guard-actions` is ready to open: gaze gate + per-face match + 2-of-3 debounce, banner, Mode ladder
+**2026-11-26**: PR6 `feat/guard-actions` is open as #7 (https://github.com/amirdoescoding/byaku/pull/7), review fixes committed and live-checked: gaze gate + per-face match + 2-of-3 debounce, banner, Mode ladder
 (Whisper/Iris/Shade/Awaken), Iris mist/dim overlay, Lift for now, sound toggle. Spec `docs/designs/guard-actions.md`, mockups `design/guard/`.
 Run with `.build/debug/byaku app ml/models/sface.mlpackage`.
 

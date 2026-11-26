@@ -18,3 +18,7 @@ scroll baseline. Finish reviewer skipped (no screenshots; user's call).
 - The spec's "~0 GPU" claim for a blurred shadow was wrong; only the user's measurement caught it. Should have picked gradients first.
 - Screenshot verification failed silently (no Screen Recording permission) and cost a detour.
 - Good: questions before building, mockups-first held, advisor review before declaring done.
+
+**Continued after the session limit**: verified and committed the pre-merge review fixes (weak cam, stale embed on failed perform,
+128-float owner file, auto-hidden menu bar inset, `animate(from:)`). Build, 13 tests and check-ui were green, and the user ran a live
+smoke test (Lift for now is in the menu, not on the banner; I gave the wrong instructions at first). Opened PR #7.
