@@ -23,10 +23,8 @@
 - [x] Step-by-step onboarding: real-menu tour with a coach bubble + mascot (PR12 `feat/onboarding`)
 - [x] Closing video after setup: founder clip with lockup intro/outro (bundled, offline)
 - [x] **PR B1: guided face scan** (`feat/face-scan`): live mesh mask, camera until the sweep, straight/left/right holds
-- [ ] **PR B1 hardware QA** (only hardware can show): turn to your own left completes "left"; camera image monochrome + soft edge
-  + nothing left after the sweep (fallback if colour: grey overlay with a saturation compositingFilter); mask nods with the head
-  (`ScanFrame.pitchSign`); compact panel layout; LED off after Saved/Cancel/Esc/lock; VoiceOver; Reduce Motion; owner still
-  matches after a rescan and a second person/photo doesn't (`byaku match` / Guard live)
+- [x] PR B1 hardware QA: the user checked the scan on their Mac after the deadlock fix ("everything is good", 2026-11-27)
+- [ ] Owner match after a rescan with a second person or photo (`byaku match`): the template now comes from ~15 frames in 1 s, not ~25 in 5 s
 - [ ] **PR B2: multi-pose template**: pre-register the margin bar (owner 0° and ±25° vs strangers), compare straight-only vs
   multi-pose mean / per-pose max, verify live with a second person, then let side-hold prints into `ownerTemplate`
 - [ ] Optional scan delight: the mascot copies the user's brow raise / blink (Vision brow + eye points are already tracked)

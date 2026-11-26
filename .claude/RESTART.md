@@ -1,10 +1,10 @@
 # Restart
 
-**2026-11-27**: PR B1 `feat/face-scan` (local commits, not pushed). Guided face scan with a live mesh mask:
-- Design: the user OK'd the prototype (`design/scan/prototype.html`, live camera mode) after three rounds: expressions
-  follow, no side-band ceiling, and the intro order camera → mask on top → sweep wipes the camera.
-- Swift: `ScanView` (onboarding + Set up face panel), `ScanPose` + 6 tests, `ScanMesh.swift` from `ml/scan_mesh.py`,
-  `Camera.onLandmarks`, Tokens.Scan. Build, check-ui and 26 tests are green; synthetic-head snapshots looked right.
+**2026-11-27**: PR B1 `feat/face-scan` is pushed with a PR open, waiting for CI and the user's merge. Guided face scan
+with a live mesh mask (camera beat → mask → sweep → straight/left/right → collapse into the ring). The user tested it on
+their Mac after the deadlock fix: "everything is good".
+- Deadlock: an AVCaptureVideoPreviewLayer on the session locked up with our Vision requests, so the camera beat now
+  draws our own frames, and `Camera.stop()` runs off the main thread.
 
-**Stopped at:** the user's hardware QA (checklist in TODOS "PR B1 hardware QA"). After their OK: push, open the PR, CI.
-Then B2 (the multi-pose template behind a pre-registered bar).
+Next: B2, the multi-pose template behind a pre-registered margin bar. Still open: owner match after a rescan with a
+second person or a photo.
