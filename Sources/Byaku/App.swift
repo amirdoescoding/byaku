@@ -56,7 +56,8 @@ final class AppController: NSObject, NSMenuDelegate {
     private var panel: EnrollPanel?
     private var enrollCam: Camera?
     private var enrollRun = 0  // bumps on cancel/retry so stale callbacks are dropped
-    private var countingRun = -1  // the run whose countdown has begun (main thread)
+    private var scanStarted = false  // the current run has had a camera frame (main thread)
+    private var scanPrints: [[Float]] = []  // straight-hold embeddings of the current scan (main thread); never stored
     private var onboarding: OnboardingFlow?  // first run, or "Welcome tour…"
 
     init(model: String) {
@@ -476,29 +477,39 @@ final class AppController: NSObject, NSMenuDelegate {
         if !shown { capture() }
     }
 
+    /// The guided scan (docs/designs/face-scan.md): 15 fps landmarks drive the mask; every frame is embedded, and only
+    /// frames counted during the straight hold make the face print (unit mean, as before). Side poses guide only, for now.
     private func capture() {
         guard let embedder else { showEnroll(.failed("The face model is missing.")); return }
         if guardCam != nil { guardCam?.stop(); guardCam = nil; set(.off) }  // one camera user at a time; Guard resumes after
         enrollCam?.stop()
         enrollRun += 1
-        let run = enrollRun, seconds = 5
-        let cam = Camera(fps: 5)
+        let run = enrollRun
+        let cam = Camera(fps: Tokens.Scan.fps)
         cam.embed = embedder
         enrollCam = cam
+        scanPrints = []; scanStarted = false
         showEnroll(.starting)
+        scanView?.attach(cam.session)
+        scanView?.onDone = { [weak self] in self?.scanDone(run) }
+        scanView?.onFail = { [weak self] p in self?.finish(run, p) }
         DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.startTimeout) { [weak self] in  // no first frame: give up
-            if self?.enrollCam === cam, self?.countingRun != run { self?.finish(run, .failed("The camera didn't start. Try again.")) }
+            if self?.enrollCam === cam, self?.scanStarted == false { self?.finish(run, .failed("The camera didn't start. Try again.")) }
         }
-        var pending: (VNFaceObservation, [Float])?, frames: [[Float]] = [], started = false, several = false
+        var marks: (VNFaceObservation, CGSize)?, pending: (VNFaceObservation, [Float])?, last: Double?
+        cam.onLandmarks = { marks = ($0, $1) }
         cam.onEmbedding = { pending = ($0, $1) }
-        cam.onFaces = { [weak self, weak cam] faces in  // cam.queue; weak cam: the camera owns this closure
-            defer { pending = nil }
-            if !started {
-                started = true
-                DispatchQueue.main.async { if let cam { self?.countdown(run: run, cam: cam, from: seconds) { frames } } }
+        cam.onFaces = { [weak self] faces in  // cam.queue
+            defer { marks = nil; pending = nil }
+            let t = CACurrentMediaTime(), dt = last.map { t - $0 } ?? 1 / Tokens.Scan.fps
+            last = t
+            let f = ScanFrame(faces: faces.count, landmarks: faces.count == 1 ? marks?.0 : nil, size: marks?.1 ?? .zero, rect: faces.first)
+            let print = countedEmbedding(faces, pending)
+            DispatchQueue.main.async {
+                guard let self, run == self.enrollRun, let v = self.scanView else { return }
+                self.scanStarted = true
+                if v.frame(f, dt: dt), let print { self.scanPrints.append(print) }
             }
-            if faces.count >= 2, !several { several = true; DispatchQueue.main.async { self?.finish(run, .severalFaces) } }
-            if let v = countedEmbedding(faces, pending) { frames.append(v) }
         }
         start(cam) { [weak self] error in
             guard let self, run == self.enrollRun else { return }
@@ -507,27 +518,18 @@ final class AppController: NSObject, NSMenuDelegate {
         }
     }
 
-    /// 5 s from the first frame; then save the unit-mean template if enough frames counted.
-    private func countdown(run: Int, cam: Camera, from n: Int, frames: @escaping () -> [[Float]]) {
+    /// All three poses held: save the straight frames' unit mean (the camera stops now; the mask finishes on its own).
+    private func scanDone(_ run: Int) {
         guard run == enrollRun else { return }
-        if n == 0 {
-            let f = cam.queue.sync { frames() }
-            // ponytail: at least 10 counted frames (2 s at 5 fps) = "a face was seen"; tune with real failures.
-            guard f.count >= 10, let template = ownerTemplate(f) else { return finish(run, .noFace) }
-            do { try store.save(template); owner = template; finish(run, .saved) }
-            catch { finish(run, .failed("Couldn't save. Try again.")) }
-            return
-        }
-        countingRun = run
-        showEnroll(.counting(n))
-        DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.countStep) { [weak self] in
-            self?.countdown(run: run, cam: cam, from: n - 1, frames: frames)
-        }
+        guard scanPrints.count >= Tokens.Scan.minFrames, let template = ownerTemplate(scanPrints) else { return finish(run, .noFace) }
+        do { try store.save(template); owner = template; finish(run, .saved) }
+        catch { finish(run, .failed("Couldn't save. Try again.")) }
     }
 
     private func finish(_ run: Int, _ result: EnrollPanel.Phase) {
         guard run == enrollRun else { return }
-        enrollRun += 1  // stop the countdown and late callbacks
+        enrollRun += 1  // drop late callbacks
+        scanPrints = []
         enrollCam?.stop(); enrollCam = nil
         showEnroll(result)
         render()
@@ -541,7 +543,7 @@ final class AppController: NSObject, NSMenuDelegate {
 
     /// Stop the camera and drop late callbacks; resume Guard if it was on.
     private func stopScan() {
-        enrollRun += 1
+        enrollRun += 1; scanPrints = []
         enrollCam?.stop(); enrollCam = nil
         if guardOn, guardCam == nil, owner != nil, !awayOn { startGuard() }  // Away armed: disarm resumes Guard
     }
@@ -557,6 +559,9 @@ final class AppController: NSObject, NSMenuDelegate {
     private func showEnroll(_ p: EnrollPanel.Phase) {
         if let o = onboarding, o.scanning { o.showFace(p) } else { panel?.show(p) }
     }
+
+    /// The scan view of whichever host runs the scan.
+    private var scanView: ScanView? { onboarding?.scanning == true ? onboarding?.scanView : panel?.scan }
 
     // MARK: onboarding (docs/designs/onboarding.md)
 

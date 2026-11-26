@@ -423,22 +423,34 @@ class CardPanel: AnchoredPanel {
 
 // MARK: - EnrollPanel
 
-/// Set-up-face panel. Grows from its trigger (the status item) and shrinks back into it. No camera preview, ever.
-final class EnrollPanel: CardPanel {
-    enum Phase: Equatable { case starting, counting(Int), saved, noFace, severalFaces, cameraDenied, failed(String) }
+/// Set-up-face panel: the guided scan (compact ScanView) and a button row. Grows from its trigger (the status item) and
+/// shrinks back into it. The camera shows only at the start of the scan, then the mask alone (docs/designs/face-scan.md).
+final class EnrollPanel: AnchoredPanel {
+    typealias Spec = CardPanel.Spec
+    enum Phase: Equatable { case starting, saved, noFace, severalFaces, cameraDenied, failed(String) }
+    static let size = NSSize(width: 360, height: 352)
 
-    var onRetry: () -> Void = {}, onOpenSettings: () -> Void = {}
+    var onCancel: () -> Void = {}, onRetry: () -> Void = {}, onOpenSettings: () -> Void = {}
+    let scan = ScanView(frame: NSRect(origin: .zero, size: size), compact: true)
+    private var buttons: [PanelButton] = []
     private var autoClose: DispatchWorkItem?
 
-    init() { super.init(width: 320, title: "Set up face") }
+    init() {
+        super.init(size: Self.size, level: .statusBar)
+        setAccessibilityTitle("Set up face")
+        contentView!.addSubview(scan)
+    }
 
-    override func dismiss() { autoClose?.cancel(); super.dismiss() }
+    override var canBecomeKey: Bool { true }  // Esc and VoiceOver; nonactivating, so the user's app keeps focus
+    override func cancelOperation(_ sender: Any?) {
+        if let b = buttons.first(where: { ["Cancel", "Done"].contains($0.title) }) { b.performClick(nil) } else { onCancel() }
+    }
+    override func dismiss() { autoClose?.cancel(); scan.stop(); super.dismiss() }
 
-    /// Title and body per phase; the onboarding window shows the same words.
+    /// Title and body per outcome; the onboarding window's scan shows the same words.
     static func copy(_ p: Phase) -> (String, String) {
         switch p {
         case .starting: ("Starting camera…", "")
-        case .counting: ("Look at the screen", "Be the only person in view. Nothing is saved except a face print.")
         case .saved: ("Face saved", "Stored on this Mac only. Delete it any time from the menu.")
         case .noFace: ("No face seen", "Face the screen in good light, then try again.")
         case .severalFaces: ("More than one face", "Only you should be in view. Try again when you're alone.")
@@ -450,25 +462,24 @@ final class EnrollPanel: CardPanel {
     func show(_ p: Phase) {
         autoClose?.cancel()
         let cancel = ("Cancel", PanelButton.Role.secondary, onCancel), retry = ("Try again", PanelButton.Role.primary, onRetry)
-        let (title, text) = Self.copy(p)
-        let (ringPhase, specs): (ProgressRing.Phase, [Spec]) = switch p {
-        case .starting: (.starting, [cancel])
-        case .counting(let r): (.counting(remaining: r), [cancel])
-        case .saved: (.done, [("Done", .primary, onCancel)])
-        case .noFace, .severalFaces, .failed: (.failed, [cancel, retry])
-        case .cameraDenied: (.failed, [cancel, ("Open camera settings…", .primary, onOpenSettings)])
-        }
-        let announce: String? = switch p {
-        case .starting: nil
-        case .counting(let r): r == 5 ? "\(title). \(text) 5" : "\(r)"
-        default: "\(title). \(text)"
-        }
-        render(ringPhase, title, text, specs, announce: announce)
-        if p == .saved {
+        switch p {
+        case .starting: scan.start(); setButtons([cancel])
+        case .saved:
+            scan.saved(); setButtons([("Done", .primary, onCancel)])
             let w = DispatchWorkItem { [weak self] in self?.onCancel() }
             autoClose = w
             DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.autoClose, execute: w)
+        case .noFace, .severalFaces, .failed: scan.fail(p); setButtons([cancel, retry])
+        case .cameraDenied: scan.fail(p); setButtons([cancel, ("Open camera settings…", .primary, onOpenSettings)])
         }
+    }
+
+    private func setButtons(_ specs: [Spec]) {
+        buttons.forEach { $0.removeFromSuperview() }
+        buttons = specs.map { t, role, act in PanelButton(t, role: role) { act() } }
+        var x = Self.size.width - 24
+        for b in buttons.reversed() { x -= b.frame.width; b.setFrameOrigin(NSPoint(x: x, y: 24)); x -= 8; contentView!.addSubview(b) }
+        buttons.last { $0.role == .primary }?.keyEquivalent = "\r"
     }
 }
 
