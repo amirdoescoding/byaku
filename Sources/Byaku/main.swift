@@ -264,7 +264,7 @@ case "lock-test":
     lockTest()
 case "alarm-test":  // LOUD: full volume, unmuted, for N seconds (default 10); then the volume is restored
     let alarm = Alarm(), secs = args.count > 1 ? Double(args[1]) ?? 10 : 10
-    alarm.start()
+    alarm.start(level: 1)
     DispatchQueue.main.asyncAfter(deadline: .now() + secs) { alarm.stop(); exit(0) }
     dispatchMain()
 case "embed":

@@ -23,6 +23,12 @@ enum Tokens {
     /// Away (docs/designs/away-mode.md). Not motion: arming countdown, the camera-stall limit, the siren/voice cycle.
     enum Away {
         static let armSeconds = 5, stallLimit = 10.0, watchdog = 5.0, sirenSeconds = 3.0, lockCheck = 1.0
+        static let testSeconds = 3.0, blipSeconds = 1.0
+        /// Alarm volume slider (Control Center Sound style): floor so the alarm is never silent; default full.
+        static let minVolume: Float = 0.25
+        static let sliderTrack = NSColor.labelColor.withAlphaComponent(0.16)
+        static let knobShadow = NSColor.black.withAlphaComponent(0.3)
+        static let knobGlyph = NSColor.black.withAlphaComponent(0.85)
     }
 
     enum Motion {

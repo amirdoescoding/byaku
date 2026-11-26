@@ -19,6 +19,16 @@ Mockups: `design/away/` (`src/mockups.py`), approved 2026-11-26 (icon A, menu as
   and Away turns off; the next menu's status line reads "Away locked: camera unavailable" (once). The lock is confirmed
   1 s later via `CGSSessionScreenIsLocked`; if it didn't take, the alarm sounds instead.
 
+## Volume (mockup C, approved 2026-11-26)
+- An "Alarm volume" row sits under Away in the menu: a custom `NSMenuItem.view` (`VolumeSlider`), styled like the Control Center
+  Sound slider. It's a 24 pt pill with a white fill up to a white knob carrying the speaker glyph (1/2/3 waves by level). This is a
+  user-approved exception to "no custom views in NSMenu" (menubar.md §2).
+- Range 25–100% (`Tokens.Away.minVolume`), so the alarm is never silent. Default 100%. Stored in UserDefaults `alarmVolume`.
+- Letting go plays a 1 s siren blip at that level. "Play test (3 s)" below it plays the siren for 3 s. Both are previews: the volume
+  goes back afterwards, and a real alarm takes over from a preview.
+- The fail-closed fallback (the lock didn't take) always plays at 100%.
+- VoiceOver: role slider, "Alarm volume", value in percent, increment/decrement in 25% steps.
+
 ## Licence
 No audio file ships. The siren is computed (`siren(t)` in `Alarm.swift`) and the line uses the system voice (`AVSpeechSynthesizer`).
 A user-recorded message (next PR) will replace the spoken line when one is set.

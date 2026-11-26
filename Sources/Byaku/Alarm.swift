@@ -35,21 +35,31 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate {
     private var saved: (device: AudioObjectID, volume: Float32?, mute: UInt32?)?
     private var run = 0  // bumps on stop so a pending siren → voice hand-off is dropped
     private(set) var playing = false
+    private var testing = false  // a preview: siren only, and a real alarm takes over from it
 
     override init() { super.init(); voice.delegate = self }
 
-    func start() {
-        guard !playing else { return }
-        playing = true
+    /// `level` = output volume while it plays (Tokens.Away.minVolume…1). A real alarm replaces a running preview.
+    func start(level: Float, voice: Bool = true) {
+        if playing { guard testing, voice else { return }; stop() }
+        playing = true; testing = !voice
         let dev = defaultOutput()
         saved = (dev, get(dev, volumeSel) as Float32?, get(dev, kAudioDevicePropertyMute) as UInt32?)
-        set(dev, kAudioDevicePropertyMute, UInt32(0)); set(dev, volumeSel, Float32(1))
+        set(dev, kAudioDevicePropertyMute, UInt32(0)); set(dev, volumeSel, Float32(level))
         siren(run)
+    }
+
+    /// Siren only, for `seconds`, at `level` (Play test, slider release). Then the volume goes back.
+    func preview(level: Float, seconds: Double) {
+        guard !playing || testing else { return }  // never cut into a real alarm
+        start(level: level, voice: false)
+        let r = run
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in if r == self?.run, self?.testing == true { self?.stop() } }
     }
 
     func stop() {
         guard playing else { return }
-        playing = false; run += 1
+        playing = false; testing = false; run += 1
         engine?.stop(); voice.stopSpeaking(at: .immediate)
         if let s = saved {
             if let v = s.volume { set(s.device, volumeSel, v) }
@@ -64,7 +74,7 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate {
         engine = e
         try? e.start()  // ponytail: no output device = no sound; the lock already happened, so nothing else to do
         DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Away.sirenSeconds) { [weak self] in
-            guard let self, self.playing, r == self.run else { return }
+            guard let self, self.playing, !self.testing, r == self.run else { return }
             self.engine?.pause()
             self.voice.speak(AVSpeechUtterance(string: Self.line))
         }

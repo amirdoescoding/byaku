@@ -28,7 +28,7 @@ final class AppController: NSObject, NSMenuDelegate {
     private let defaults = UserDefaults.standard
     private let banner = BannerPanel(), overlay = WatchOverlay()
     private var lifted = false, bannerClosed = false  // "Lift for now" / × : until the next separate alert
-    private enum Key { static let mode = "mode", banner = "banner", sound = "sound", guardOn = "guard" }
+    private enum Key { static let mode = "mode", banner = "banner", sound = "sound", guardOn = "guard", alarmVolume = "alarmVolume" }
     /// Persisted so Guard resumes at launch (and at login) if it was on at quit.
     private var guardOn: Bool {
         get { defaults.bool(forKey: Key.guardOn) }
@@ -53,7 +53,7 @@ final class AppController: NSObject, NSMenuDelegate {
 
     init(model: String) {
         super.init()
-        defaults.register(defaults: [Key.mode: Mode.iris.rawValue, Key.banner: true, Key.sound: false])
+        defaults.register(defaults: [Key.mode: Mode.iris.rawValue, Key.banner: true, Key.sound: false, Key.alarmVolume: 1.0])
         banner.onClose = { [weak self] in self?.bannerClosed = true; self?.syncActions() }
         owner = store.load()
         do { embedder = try loadEmbedder(model, units: .cpuAndNeuralEngine).request }  // compile once, reuse per run
@@ -131,6 +131,17 @@ final class AppController: NSObject, NSMenuDelegate {
         a.state = awayOn ? .on : .off
         a.isEnabled = owner != nil && embedder != nil && enrollCam == nil && panel?.isVisible != true
         menu.addItem(a)
+        menu.addItem(.separator())
+        let vol = NSMenuItem()
+        let slider = VolumeSlider(value: alarmVolume)
+        slider.onCommit = { [weak self] v in
+            self?.defaults.set(v, forKey: Key.alarmVolume)
+            self?.alarm.preview(level: v, seconds: Tokens.Away.blipSeconds)  // like the macOS volume click
+        }
+        vol.view = slider
+        menu.addItem(vol)
+        menu.addItem(entry("Play test (3 s)", #selector(playTest)))
+        menu.addItem(.separator())
         let modes = NSMenu()
         for m in Mode.allCases {
             let i = entry(m.title, #selector(pickMode(_:)))
@@ -225,6 +236,8 @@ final class AppController: NSObject, NSMenuDelegate {
 
     // MARK: Away
 
+    @objc private func playTest() { alarm.preview(level: alarmVolume, seconds: Tokens.Away.testSeconds) }
+
     @objc private func toggleAway() { awayOn ? disarm() : arm() }
 
     private func arm() {
@@ -279,8 +292,10 @@ final class AppController: NSObject, NSMenuDelegate {
         stopWatching()
         set(.alarm)
         lockScreen()
-        alarm.start()
+        alarm.start(level: alarmVolume)
     }
+
+    private var alarmVolume: Float { min(max(defaults.float(forKey: Key.alarmVolume), Tokens.Away.minVolume), 1) }
 
     /// The pipeline can't watch: lock without the siren (nobody looked), then Away is off. If the lock call itself is
     /// missing, sound the alarm instead; never leave an armed Mac unwatched and unlocked.
@@ -291,7 +306,7 @@ final class AppController: NSObject, NSMenuDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Away.lockCheck) { [weak self] in  // the session flag lags the call
             guard let self, run == self.awayRun else { return }
             if screenIsLocked() { self.awayNote = "Away locked: camera unavailable"; self.disarm() }
-            else { self.set(.alarm); self.alarm.start() }  // the lock didn't take: be loud instead
+            else { self.set(.alarm); self.alarm.start(level: 1) }  // the lock didn't take: be loud instead
         }
     }
 

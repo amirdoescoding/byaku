@@ -117,3 +117,20 @@ func awayLookerRules(scores: [Float?], looker: Bool) {
     #expect(away(1, 1) < 0.1)
     #expect(alarm(18, 18) > 0.8)                                // alarm reuses the alert dot
 }
+
+@Test func volumeSliderKnobTracksValue() throws {
+    func render(_ v: Float) throws -> NSBitmapImageRep {
+        let s = VolumeSlider(value: v)
+        s.appearance = NSAppearance(named: .darkAqua)
+        let rep = try #require(s.bitmapImageRepForCachingDisplay(in: s.bounds))
+        s.cacheDisplay(in: s.bounds, to: rep)
+        if let dir = ProcessInfo.processInfo.environment["BYAKU_ICON_DUMP"] {
+            try rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "\(dir)/slider-\(v).png"))
+        }
+        return rep
+    }
+    // Right end of the track, mid-height (rep is y-down): white fill only when full.
+    let full = try render(1), low = try render(Tokens.Away.minVolume)
+    let px = { (r: NSBitmapImageRep) in r.colorAt(x: Int(CGFloat(r.pixelsWide) * 0.8), y: r.pixelsHigh - Int(20 * CGFloat(r.pixelsHigh) / 62))!.alphaComponent }  // fill is opaque white; the bare track is 16% alpha
+    #expect(px(full) > 0.9 && px(low) < 0.5)
+}

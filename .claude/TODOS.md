@@ -19,7 +19,8 @@
 - [x] `lockScreen()` shared (Alarm.swift); `Alarm`: computed siren + system voice loop, full volume/unmute, restored on stop
 - [x] Away arm/arming/watch/trigger/disarm in AppController; unlock = disarm; fail closed (start error, 10 s stall)
 - [x] Unit tests: Away looker rule (lone unembeddable counts), siren bounds/loudness, away/alarm icon shapes
-- [ ] Live (user): `byaku alarm-test`, arm → photo → lock + alarm, unlock → silence + volume back, owner no trigger, Guard resumes
+- [x] Alarm volume slider (Control Center style, 25–100%, release blip) + Play test (3 s); mockup C approved
+- [ ] Live (user): slider drag + blip + Play test restore the volume; `byaku alarm-test`, arm → photo → lock + alarm, unlock → silence + volume back, owner no trigger, Guard resumes
 - [ ] Power row: `scripts/power.sh` with Away armed, no face (expected same as Guard)
 - [ ] Not done: impeccable skill pass on the icon/menu diff (the two impeccable agents aren't installed)
 - [ ] Away rule "a lone unembeddable face counts" was my call, not the user's: revisit first if the owner walking back triggers it

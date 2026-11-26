@@ -450,3 +450,68 @@ private final class SurfaceView: NSView {
         layer!.borderColor = cg(Tokens.line, in: self)
     }
 }
+
+// MARK: - VolumeSlider
+
+/// "Alarm volume" row inside the NSMenu (docs/designs/away-mode.md §Volume): Control Center Sound style. A 24 pt pill,
+/// filled up to a white knob that carries the speaker glyph. Range Tokens.Away.minVolume…1: the alarm is never silent.
+/// `onCommit` fires on mouse-up (and per VoiceOver step) with the final value.
+final class VolumeSlider: NSView {
+    var onCommit: (Float) -> Void = { _ in }
+    private(set) var value: Float
+    private let pad = NSEdgeInsets(top: 6, left: 23, bottom: 8, right: 13), knob: CGFloat = 24
+    private let title = NSTextField(labelWithString: "Alarm volume")
+
+    init(value: Float, width: CGFloat = 270) {
+        self.value = value
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 6 + 16 + 6 + 24 + 8))
+        autoresizingMask = .width
+        title.font = .systemFont(ofSize: 13, weight: .semibold)
+        title.frame = NSRect(x: pad.left, y: bounds.height - pad.top - 16, width: 200, height: 16)
+        title.setAccessibilityElement(false)
+        addSubview(title)
+        setAccessibilityElement(true); setAccessibilityRole(.slider); setAccessibilityLabel("Alarm volume")
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    private var track: NSRect { NSRect(x: pad.left, y: pad.bottom, width: bounds.width - pad.left - pad.right, height: knob) }
+    private var frac: CGFloat { CGFloat((value - Tokens.Away.minVolume) / (1 - Tokens.Away.minVolume)) }
+
+    override func draw(_ dirty: NSRect) {
+        let t = track, x = t.minX + frac * (t.width - knob)
+        Tokens.Away.sliderTrack.setFill()
+        NSBezierPath(roundedRect: t, xRadius: knob / 2, yRadius: knob / 2).fill()
+        NSColor.white.setFill()
+        NSBezierPath(roundedRect: NSRect(x: t.minX, y: t.minY, width: x - t.minX + knob, height: knob), xRadius: knob / 2, yRadius: knob / 2).fill()
+        let k = NSRect(x: x, y: t.minY, width: knob, height: knob)
+        NSGraphicsContext.saveGraphicsState()
+        let sh = NSShadow(); sh.shadowBlurRadius = 3; sh.shadowOffset = NSSize(width: 0, height: -1)
+        sh.shadowColor = Tokens.Away.knobShadow; sh.set()
+        NSBezierPath(ovalIn: k).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        let name = value > 0.6 ? "speaker.wave.3.fill" : value > 0.35 ? "speaker.wave.2.fill" : "speaker.wave.1.fill"
+        let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold).applying(.init(paletteColors: [Tokens.Away.knobGlyph]))
+        if let g = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(cfg) {
+            g.draw(in: NSRect(x: k.midX - g.size.width / 2, y: k.midY - g.size.height / 2, width: g.size.width, height: g.size.height))
+        }
+    }
+
+    private func set(fromX px: CGFloat) {
+        let t = track, f = min(max((px - t.minX - knob / 2) / (t.width - knob), 0), 1)
+        value = Tokens.Away.minVolume + Float(f) * (1 - Tokens.Away.minVolume)
+        setAccessibilityValue("\(Int((value * 100).rounded())) percent")
+        needsDisplay = true
+    }
+
+    override func mouseDown(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x) }
+    override func mouseDragged(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x) }
+    override func mouseUp(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x); onCommit(value) }
+
+    override func accessibilityPerformIncrement() -> Bool { step(0.25) }
+    override func accessibilityPerformDecrement() -> Bool { step(-0.25) }
+    private func step(_ d: Float) -> Bool {
+        value = min(max(value + d, Tokens.Away.minVolume), 1); needsDisplay = true
+        setAccessibilityValue("\(Int((value * 100).rounded())) percent"); onCommit(value)
+        return true
+    }
+}
