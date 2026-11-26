@@ -12,7 +12,7 @@ enum StatusIcon {
             let t = NSAffineTransform()
             t.translateX(by: 1, yBy: 1); t.scale(by: 16 / 56); t.translateX(by: -4, yBy: -4)
             t.concat()
-            (state == .guarding || state == .alert ? Tokens.accent : NSColor.black).set()
+            (state == .off || state == .error ? NSColor.black : Tokens.accent).set()
             NSGraphicsContext.saveGraphicsState()
             if state == .error {  // knock out 1.5 units either side of the slash
                 let clip = NSBezierPath(rect: NSRect(x: 0, y: 0, width: 64, height: 64))
@@ -20,11 +20,18 @@ enum StatusIcon {
                 clip.windingRule = .evenOdd
                 clip.addClip()
             }
-            let ring = NSBezierPath(ovalIn: NSRect(x: 32 - 25.75, y: 32 - 25.75, width: 51.5, height: 51.5))
-            ring.lineWidth = 4.5
-            ring.stroke()
-            blades.forEach { $0.fill() }
-            if state == .alert { NSBezierPath(ovalIn: NSRect(x: 26, y: 26, width: 12, height: 12)).fill() }
+            if state == .away {  // solid iris: the ring's outer disc (r 28) with the blades knocked out
+                let iris = NSBezierPath(ovalIn: NSRect(x: 4, y: 4, width: 56, height: 56))
+                blades.forEach(iris.append)
+                iris.windingRule = .evenOdd
+                iris.fill()
+            } else {
+                let ring = NSBezierPath(ovalIn: NSRect(x: 32 - 25.75, y: 32 - 25.75, width: 51.5, height: 51.5))
+                ring.lineWidth = 4.5
+                ring.stroke()
+                blades.forEach { $0.fill() }
+                if state == .alert || state == .alarm { NSBezierPath(ovalIn: NSRect(x: 26, y: 26, width: 12, height: 12)).fill() }
+            }
             NSGraphicsContext.restoreGraphicsState()  // drops the knockout clip, keeps the transform
             if state == .error { slash(width: 4.5).fill() }
             return true
@@ -40,6 +47,8 @@ enum StatusIcon {
         case .guarding: "byaku, guarding, camera on"
         case .alert: "byaku, alert, someone else is looking"
         case .error: "byaku, not guarding, \(reason ?? "camera unavailable")"
+        case .away: "byaku, away, locks if anyone looks"
+        case .alarm: "byaku, alarm, someone looked while you were away"
         }
     }
 

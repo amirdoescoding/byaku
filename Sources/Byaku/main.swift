@@ -30,24 +30,16 @@ func detect(fps: Double, embedModel: String?) -> Never {
     dispatchMain()
 }
 
-func screenIsLocked() -> Bool {
-    (CGSessionCopyCurrentDictionary() as? [String: Any])?["CGSSessionScreenIsLocked"] as? Bool ?? false
-}
-
-/// Locks via private SACLockScreenImmediate (same call BLEUnlock-style tools use), then verifies.
+/// Locks via lockScreen() (Alarm.swift), then verifies.
 /// Also counts camera frames while locked (does Away keep seeing after lock?).
 func lockTest() -> Never {
     let cam = Camera(fps: 1)
     must(69) { try cam.start() }
     sleep(3)
     var method = "SACLockScreenImmediate"
-    if let h = dlopen("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login", RTLD_LAZY),
-       let sym = dlsym(h, "SACLockScreenImmediate") {
-        typealias Lock = @convention(c) () -> Int32
-        _ = unsafeBitCast(sym, to: Lock.self)()
-    } else {
+    if !lockScreen() {
         // ponytail: fallback only counts as a lock if "require password immediately" is on.
-        method = "pmset displaysleepnow (symbol missing: \(String(cString: dlerror())))"
+        method = "pmset displaysleepnow (symbol missing)"
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
         p.arguments = ["displaysleepnow"]
@@ -270,9 +262,14 @@ case "app":
     runApp(model: args.count > 1 ? args[1] : "ml/models/sface.mlpackage")
 case "lock-test":
     lockTest()
+case "alarm-test":  // LOUD: full volume, unmuted, for N seconds (default 10); then the volume is restored
+    let alarm = Alarm(), secs = args.count > 1 ? Double(args[1]) ?? 10 : 10
+    alarm.start()
+    DispatchQueue.main.asyncAfter(deadline: .now() + secs) { alarm.stop(); exit(0) }
+    dispatchMain()
 case "embed":
     guard args.count == 3 else { fail("usage: byaku embed <model.mlpackage> <parity dir>", code: 64) }
     embedCheck(model: args[1], parityDir: args[2])
 default:
-    fail("usage: byaku detect [--fps N] [--embed model.mlpackage] | embed|align <model.mlpackage> <parity dir> | match <model> <label>... | app [model] | lock-test", code: 64)
+    fail("usage: byaku detect [--fps N] [--embed model.mlpackage] | embed|align <model.mlpackage> <parity dir> | match <model> <label>... | app [model] | lock-test | alarm-test [s]", code: 64)
 }

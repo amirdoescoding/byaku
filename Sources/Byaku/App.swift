@@ -36,6 +36,16 @@ final class AppController: NSObject, NSMenuDelegate {
     }
     private var mode: Mode { Mode(rawValue: defaults.integer(forKey: Key.mode)) ?? .iris }
 
+    // Away (docs/designs/away-mode.md). Guard pauses while armed (guardOn kept) and resumes on disarm.
+    private var awayOn = false
+    private var awayCam: Camera?
+    private var awayRun = 0  // bumps on disarm so a stale countdown or frame is dropped
+    private var armingLeft = 0  // seconds left in the arming countdown; 0 = watching
+    private var lastFrame = Date.distantPast
+    private var watchdog: Timer?
+    private let alarm = Alarm()
+    private var awayNote: String?  // why a fail-closed lock happened; shown once in the next menu
+
     private var panel: EnrollPanel?
     private var enrollCam: Camera?
     private var enrollRun = 0  // bumps on cancel/retry so stale callbacks are dropped
@@ -54,6 +64,8 @@ final class AppController: NSObject, NSMenuDelegate {
         item.menu = menu
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(screenLocked),
                                                             name: .init("com.apple.screenIsLocked"), object: nil)
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(screenUnlocked),
+                                                            name: .init("com.apple.screenIsUnlocked"), object: nil)
         render()
         if guardOn { if owner != nil { startGuard() } else { guardOn = false } }
     }
@@ -89,14 +101,19 @@ final class AppController: NSObject, NSMenuDelegate {
     }
 
     private var statusLine: String {
+        if let awayNote { return awayNote }
         if let errorReason { return "Not guarding: \(errorReason)" }
         if owner == nil { return "Set up your face to turn on Guard" }
         switch state {
         case .alert: return "Someone else is looking"
         case .guarding: return "Guarding. Camera is on"
+        case .away: return armingLeft > 0 ? "Away in \(armingLeft) s. Step away" : "Away. Locks if anyone looks"
+        case .alarm: return "Someone looked. Locked"
         default: return "Guard is off"
         }
     }
+
+    func menuDidClose(_ menu: NSMenu) { awayNote = nil }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
@@ -108,8 +125,12 @@ final class AppController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         let g = entry("Guard", #selector(toggleGuard), key: "g")
         g.state = guardOn ? .on : .off
-        g.isEnabled = owner != nil && enrollCam == nil  // one camera user at a time
+        g.isEnabled = owner != nil && enrollCam == nil && !awayOn  // one camera user at a time
         menu.addItem(g)
+        let a = entry("Away", #selector(toggleAway), key: "a")
+        a.state = awayOn ? .on : .off
+        a.isEnabled = owner != nil && embedder != nil && enrollCam == nil && panel?.isVisible != true
+        menu.addItem(a)
         let modes = NSMenu()
         for m in Mode.allCases {
             let i = entry(m.title, #selector(pickMode(_:)))
@@ -120,14 +141,18 @@ final class AppController: NSObject, NSMenuDelegate {
         }
         let modeItem = NSMenuItem(title: "Mode", action: nil, keyEquivalent: "")
         modeItem.submenu = modes
+        modeItem.isEnabled = !awayOn
         menu.addItem(modeItem)
         let b = entry("Banner", #selector(toggleBanner)); b.state = defaults.bool(forKey: Key.banner) ? .on : .off
         let snd = entry("Sound", #selector(toggleSound)); snd.state = defaults.bool(forKey: Key.sound) ? .on : .off
+        b.isEnabled = !awayOn; snd.isEnabled = !awayOn
         menu.addItem(b); menu.addItem(snd)
         menu.addItem(.separator())
-        menu.addItem(entry(owner == nil ? "Set up face…" : "Set up face again…", #selector(setUpFace), key: "e"))
+        let setup = entry(owner == nil ? "Set up face…" : "Set up face again…", #selector(setUpFace), key: "e")
+        setup.isEnabled = !awayOn
+        menu.addItem(setup)
         let del = entry("Delete face data", #selector(deleteFace))
-        del.isEnabled = owner != nil
+        del.isEnabled = owner != nil && !awayOn
         menu.addItem(del)
         menu.addItem(.separator())
         if Bundle.main.bundleURL.pathExtension == "app" {  // a terminal-run CLI has no bundle to register
@@ -193,10 +218,93 @@ final class AppController: NSObject, NSMenuDelegate {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
                 try cam.start()
-                DispatchQueue.main.async { if cam !== self?.guardCam, cam !== self?.enrollCam { cam.stop() } }
+                DispatchQueue.main.async { if cam !== self?.guardCam, cam !== self?.enrollCam, cam !== self?.awayCam { cam.stop() } }
             } catch { DispatchQueue.main.async { failed(error) } }
         }
     }
+
+    // MARK: Away
+
+    @objc private func toggleAway() { awayOn ? disarm() : arm() }
+
+    private func arm() {
+        guard owner != nil, embedder != nil, !awayOn else { return }
+        awayOn = true; awayRun += 1; awayNote = nil
+        guardCam?.stop(); guardCam = nil  // Guard pauses; guardOn stays so disarm resumes it
+        countdown(away: awayRun, Tokens.Away.armSeconds)
+    }
+
+    /// Arming: a few seconds to stand up and leave before frames count. Then watch.
+    private func countdown(away run: Int, _ n: Int) {
+        guard run == awayRun else { return }
+        armingLeft = n
+        if n == 0 { return watch(run) }
+        set(.away)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.countStep) { [weak self] in self?.countdown(away: run, n - 1) }
+    }
+
+    /// Same pipeline as Guard (1 fps, gaze gate, SFace, 2-of-3 debounce); only the rule (any non-owner face, unembeddable
+    /// included) and the action differ. Fails closed: camera error or stall → lock.
+    private func watch(_ run: Int) {
+        guard let owner, let embedder else { return failClosed() }
+        let cam = Camera(fps: 1)
+        cam.embed = embedder
+        var debounce = Debounce()  // touched only on cam.queue
+        cam.onFrame = { [weak self] embeddings in
+            let fire = debounce.add(frameHasLooker(embeddings.map { $0.map { cosine(unit($0), owner) } }, away: true))
+            DispatchQueue.main.async {
+                guard let self, run == self.awayRun, self.awayCam != nil else { return }
+                self.lastFrame = Date()
+                if fire { self.trigger() }
+            }
+        }
+        awayCam = cam; lastFrame = Date()
+        set(.away)
+        start(cam) { [weak self] _ in if run == self?.awayRun, self?.awayCam === cam { self?.failClosed() } }
+        let t = Timer(timeInterval: Tokens.Away.watchdog, repeats: true) { [weak self] _ in
+            guard let self, self.awayCam != nil else { return }
+            if Date().timeIntervalSince(self.lastFrame) > Tokens.Away.stallLimit { self.failClosed() }  // no frames: camera died
+        }
+        RunLoop.main.add(t, forMode: .common)  // keeps firing while the menu is open
+        watchdog = t
+    }
+
+    private func stopWatching() {
+        awayCam?.stop(); awayCam = nil
+        watchdog?.invalidate(); watchdog = nil
+    }
+
+    /// A stranger looked: lock, then siren + voice until the owner unlocks (screenUnlocked → disarm).
+    private func trigger() {
+        stopWatching()
+        set(.alarm)
+        lockScreen()
+        alarm.start()
+    }
+
+    /// The pipeline can't watch: lock without the siren (nobody looked), then Away is off. If the lock call itself is
+    /// missing, sound the alarm instead; never leave an armed Mac unwatched and unlocked.
+    private func failClosed() {
+        stopWatching()
+        let run = awayRun
+        lockScreen()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Away.lockCheck) { [weak self] in  // the session flag lags the call
+            guard let self, run == self.awayRun else { return }
+            if screenIsLocked() { self.awayNote = "Away locked: camera unavailable"; self.disarm() }
+            else { self.set(.alarm); self.alarm.start() }  // the lock didn't take: be loud instead
+        }
+    }
+
+    private func disarm() {
+        awayOn = false; awayRun += 1; armingLeft = 0
+        stopWatching()
+        alarm.stop()
+        set(.off)
+        if guardOn, owner != nil { startGuard() }
+    }
+
+    /// Unlocking takes the owner's password or Touch ID, so it is the disarm (user decision 2026-11-26).
+    @objc private func screenUnlocked() { if awayOn { disarm() } }
 
     // MARK: enrollment
 
@@ -274,7 +382,7 @@ final class AppController: NSObject, NSMenuDelegate {
         enrollRun += 1
         enrollCam?.stop(); enrollCam = nil
         panel?.dismiss()
-        if guardOn, guardCam == nil, owner != nil { startGuard() }
+        if guardOn, guardCam == nil, owner != nil, !awayOn { startGuard() }  // Away armed: disarm resumes Guard
     }
 
     @objc private func screenLocked() {
@@ -304,7 +412,7 @@ final class AppController: NSObject, NSMenuDelegate {
     }
 
     @objc private func quit() {
-        guardCam?.stop(); enrollCam?.stop()
+        guardCam?.stop(); enrollCam?.stop(); stopWatching(); alarm.stop()  // alarm.stop restores the volume
         NSApp.terminate(nil)
     }
 }
