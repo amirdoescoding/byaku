@@ -47,7 +47,7 @@ Order (top to bottom):
 | 2 | Error action (error + camera denied only) | "Open camera settings…" | none | Opens System Settings > Privacy > Camera. |
 | 3 | separator | | | |
 | 4 | Guard | "Guard" | Cmd-G | Checkmark = on. Disabled until a face is enrolled. |
-| 5 | reserved | (Away mode toggle) | | Reserve one row. Do not draw it. |
+| 5 | Away | "Away" | Cmd-A | Shipped in PR9: see `docs/designs/away-mode.md`. |
 | 6 | separator | | | |
 | 7 | Set up face | not enrolled: "Set up face…"; enrolled: "Set up face again…" | Cmd-E | Opens the enrollment panel. |
 | 8 | Delete face data | "Delete face data" | none | Disabled when not enrolled. No ellipsis (no further input). |
