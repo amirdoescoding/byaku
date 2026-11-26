@@ -490,7 +490,11 @@ final class AppController: NSObject, NSMenuDelegate {
         enrollCam = cam
         scanPrints = []; scanStarted = false
         showEnroll(.starting)
-        scanView?.attach(cam.session)
+        cam.onImage = { [weak self] pb in  // cam.queue, the camera beat only (onCameraDone turns it off)
+            guard let img = ScanView.image(pb) else { return }
+            DispatchQueue.main.async { if run == self?.enrollRun { self?.scanView?.show(image: img) } }
+        }
+        scanView?.onCameraDone = { [weak cam] in cam?.queue.async { cam?.onImage = nil } }
         scanView?.onDone = { [weak self] in self?.scanDone(run) }
         scanView?.onFail = { [weak self] p in self?.finish(run, p) }
         DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.startTimeout) { [weak self] in  // no first frame: give up

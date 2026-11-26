@@ -59,3 +59,6 @@
   math as Swift (no three.js) so tuning transfers. The Vision→mesh map is measured, not hand-written. Vision yaw/roll signs
   = ours (+yaw = the user's own left); pitch sign unmeasured. B1 template = straight-hold prints only; B2 decides yawed prints.
   `cacheDisplay` snapshots drop CAShapeLayer alpha/opacity: don't judge colours from them.
+- AVCaptureVideoPreviewLayer + our VNSequenceRequestHandler on the same session deadlocked on macOS 15 (camera queue stuck in
+  Vision's dispatchGroupWait; main stuck in stopRunning → FigObjectDetectionMetadataGenerator → VNSession lock). Draw camera frames
+  ourselves; never call stopRunning on main (Camera.stop is async now).

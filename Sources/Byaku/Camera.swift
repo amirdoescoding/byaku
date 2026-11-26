@@ -20,6 +20,8 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     var onEmbedding: (VNFaceObservation, [Float]) -> Void = { _, _ in }  // largest face (rect) + embedding, before onFaces
     /// Largest face's landmarks (with yaw/pitch/roll) and the frame size in pixels, before onEmbedding. The face scan draws its mask from it.
     var onLandmarks: (VNFaceObservation, CGSize) -> Void = { _, _ in }
+    /// Each processed frame before Vision, while set (the face scan's camera beat). Memory only, never stored.
+    var onImage: ((CVPixelBuffer) -> Void)? = nil
     /// App Guard: one entry per face facing the screen (gaze gate first, then embed), nil = couldn't embed. Before onFaces.
     /// When set, it replaces the largest-face path; `detect --embed` and `match` leave it nil and keep their pre-registered behaviour.
     var onFrame: (([[Float]?]) -> Void)? = nil
@@ -88,7 +90,9 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
 
     /// Stops the sensor (LED off). A Camera is single-use: make a new one to start again.
-    func stop() { session.stopRunning() }
+    /// Off the main thread: stopRunning blocks until capture drains, and a stop that waits on Vision work in flight once
+    /// deadlocked the main thread (face scan, 2026-11-27). The UI must never wait on the camera.
+    func stop() { let s = session; DispatchQueue.global(qos: .userInitiated).async { s.stopRunning() } }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sb: CMSampleBuffer, from connection: AVCaptureConnection) {
         framesDelivered += 1
@@ -96,6 +100,7 @@ final class Camera: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         lastProcessed = Date()
         guard let pb = CMSampleBufferGetImageBuffer(sb) else { return }
         framesProcessed += 1
+        onImage?(pb)
         try? handler.perform([request], on: pb)
         let faces = request.results ?? []
         if let onFrame, let embed {

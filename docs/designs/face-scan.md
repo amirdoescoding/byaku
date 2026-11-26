@@ -65,8 +65,11 @@ eyelids move.
 
 ## Privacy
 
-- The camera image is an `AVCaptureVideoPreviewLayer`, shown only until the sweep. Nothing is recorded, written or
-  sent.
+- The camera image is drawn from the same data output the scan already reads: mirrored, monochrome and half size
+  (Core Image), set as a plain layer's contents, and shown only until the sweep. Nothing is recorded, written or sent.
+  There's no `AVCaptureVideoPreviewLayer`: with one on the session, the system's in-process object detection and our
+  Vision requests deadlocked (the camera queue stuck on the first frame, and the main thread hung in `stopRunning`).
+  `Camera.stop()` now runs `stopRunning` off the main thread too.
 - DESIGN §7 is amended accordingly: the scan is the one place a camera image shows, and only while the mask forms.
 
 ## Power

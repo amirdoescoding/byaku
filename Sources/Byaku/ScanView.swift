@@ -1,5 +1,5 @@
 import AppKit
-import AVFoundation
+import CoreImage
 import simd
 import Vision
 
@@ -179,6 +179,8 @@ final class ScanView: NSView {
     enum Phase { case starting, find, mask, sweep, scan, done, failed }
 
     var onDone: () -> Void = {}, onFail: (EnrollPanel.Phase) -> Void = { _ in }
+    /// The camera beat is over (after the sweep, or a stop): the host stops sending images.
+    var onCameraDone: () -> Void = {}
     private(set) var phase = Phase.starting
 
     private let compact: Bool
@@ -186,7 +188,8 @@ final class ScanView: NSView {
     private let titleLabel = NSTextField(labelWithString: ""), bodyLabel = NSTextField(wrappingLabelWithString: "")
     private let stage = CALayer()  // top-left coordinates, like the prototype's canvas
     private let videoRoot = CALayer(), videoWipe = CALayer(), videoEdge = CAGradientLayer()
-    private var preview: AVCaptureVideoPreviewLayer?
+    private let camera = CALayer()  // the camera beat: frames drawn as plain contents (no preview layer on the session)
+    private var hasImage = false
     private let meshRoot = CALayer(), sweepLine = CAShapeLayer()
     private let wire = CAShapeLayer(), wireDim = CAShapeLayer(), wireSeen = CAShapeLayer(), fillSeen = CAShapeLayer()
     private let wireCap = CAShapeLayer(), fillCap = CAShapeLayer()
@@ -199,7 +202,7 @@ final class ScanView: NSView {
     private var collapse: (at: Double, u: Spring1)?, vmap = [Spring1(s: Scn.lockOn), Spring1(s: Scn.lockOn), Spring1(s: Scn.lockOn)]
     private var timer: Timer?, jobs: [(at: Double, f: () -> Void)] = [], lastTick = 0.0
     private var shown = ""
-    private var lastSize: CGSize?  // camera frame px, from the last frame with landmarks (the preview shows the whole frame)
+    private var lastSize: CGSize?  // camera frame px, from the last frame with landmarks (the camera layer shows the whole frame)
 
     private var reduced: Bool { Tokens.Motion.reduced }
     private var now: Double { CACurrentMediaTime() }
@@ -211,7 +214,6 @@ final class ScanView: NSView {
         self.compact = compact
         super.init(frame: frame)
         wantsLayer = true
-        layerUsesCoreImageFilters = true  // monochrome camera
         stage.frame = bounds; stage.isGeometryFlipped = true
         layer!.addSublayer(stage)
         videoRoot.frame = bounds; videoRoot.opacity = 0
@@ -219,6 +221,9 @@ final class ScanView: NSView {
         let mask = CALayer(); mask.frame = bounds; mask.addSublayer(videoWipe); videoRoot.mask = mask
         videoEdge.type = .radial; videoEdge.startPoint = CGPoint(x: 0.5, y: 0.5); videoEdge.endPoint = CGPoint(x: 1, y: 1)
         videoEdge.colors = [NSColor.black.cgColor, NSColor.clear.cgColor]; videoEdge.locations = [0.45, 1]
+        camera.contentsGravity = .resize
+        camera.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull()]
+        videoRoot.addSublayer(camera)
         meshRoot.frame = bounds
         for l in [wireDim, wire, fillSeen, wireSeen, fillCap, wireCap, sweepLine] {
             l.frame = bounds; l.lineWidth = 0.75; l.lineJoin = .round; l.fillColor = nil; meshRoot.addSublayer(l)
@@ -271,15 +276,19 @@ final class ScanView: NSView {
         render()
     }
 
-    /// The camera under the mask, until the sweep. Mirrored, monochrome; never recorded (a preview layer only).
-    func attach(_ session: AVCaptureSession) {
-        preview?.removeFromSuperlayer()
-        let p = AVCaptureVideoPreviewLayer(session: session)
-        p.videoGravity = .resize
-        p.filters = [CIFilter(name: "CIColorControls", parameters: [kCIInputSaturationKey: 0])].compactMap { $0 }
-        p.actions = ["bounds": NSNull(), "position": NSNull(), "frame": NSNull()]
-        videoRoot.addSublayer(p)
-        preview = p
+    /// A camera frame for the camera beat (main thread). Ignored once the sweep has wiped the camera away.
+    func show(image: CGImage) {
+        guard [.starting, .find, .mask, .sweep].contains(phase) else { return }
+        camera.contents = image; hasImage = true
+    }
+
+    /// Camera frame → mirrored, monochrome, half-size image for the camera beat (camera queue). Memory only.
+    private static let ci = CIContext(options: [.cacheIntermediates: false])
+    static func image(_ pb: CVPixelBuffer) -> CGImage? {
+        let img = CIImage(cvPixelBuffer: pb).oriented(.upMirrored)
+            .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0])
+            .transformed(by: CGAffineTransform(scaleX: 0.5, y: 0.5))
+        return ci.createCGImage(img, from: img.extent)
     }
 
     /// The template is stored: "Face saved" arrives as the mask lands in the ring.
@@ -308,7 +317,7 @@ final class ScanView: NSView {
     func stop() { stopTicking(); dropVideo() }
 
     private func stopTicking() { timer?.invalidate(); timer = nil }
-    private func dropVideo() { preview?.removeFromSuperlayer(); preview = nil; videoRoot.opacity = 0 }
+    private func dropVideo() { camera.contents = nil; hasImage = false; videoRoot.opacity = 0; onCameraDone() }
     private func later(_ s: Double, _ f: @escaping () -> Void) { jobs.append((now + s, f)) }
 
     // MARK: frames
@@ -335,7 +344,7 @@ final class ScanView: NSView {
             faceSince = f.faces == 1 && tracked != nil ? (faceSince ?? now) : nil
             findFor = faceSince == nil ? findFor + dt : 0
             if findFor >= Scn.pauseFail { return fail(f.faces >= 2 ? .severalFaces : .noFace, report: true) }
-            if let s = faceSince, now - s >= (preview == nil ? 0 : Scn.videoHold) { phase = .mask; maskAt = now }
+            if let s = faceSince, now - s >= (hasImage ? Scn.videoHold : 0) { phase = .mask; maskAt = now }
         case .scan:
             let wasStraight = pose.step == .straight
             let ev = pose.frame(faces: f.faces, yaw: yaw, dt: dt, printed: printed)
@@ -466,16 +475,13 @@ final class ScanView: NSView {
 
     /// The camera layer, aligned to the mask: screen = (cx − k(imgx − tx), cy + k(imgy − ty)), k = pt per image px.
     private func renderVideo(cx: CGFloat, cy: CGFloat, scale: CGFloat, sweepY: CGFloat?) {
-        guard let p = preview, let start = videoAt, let size = lastSize else { videoRoot.opacity = 0; return }
-        if let c = p.connection, c.isVideoMirroringSupported, !c.isVideoMirrored {  // the connection exists once the session runs
-            c.automaticallyAdjustsVideoMirroring = false; c.isVideoMirrored = true
-        }
+        guard hasImage, let start = videoAt, let size = lastSize else { videoRoot.opacity = 0; return }
         let a = area
         let want = tracked.map { [Double(scale) / $0.s, $0.tx, $0.ty] }
             ?? [Double(a.h) * 1.6 / Double(size.height), Double(size.width) / 2, Double(size.height) / 2]
         for i in 0..<3 { if vmap[i].x == 0 { vmap[i].x = want[i] }; vmap[i].t = want[i] }
         let k = CGFloat(vmap[0].x), tx = CGFloat(vmap[1].x), ty = CGFloat(vmap[2].x)
-        p.frame = CGRect(x: cx - k * (size.width - tx), y: cy - k * ty, width: k * size.width, height: k * size.height)
+        camera.frame = CGRect(x: cx - k * (size.width - tx), y: cy - k * ty, width: k * size.width, height: k * size.height)
         var alpha = Scn.videoAlpha * CGFloat(min(1, (now - start) / Scn.videoIn))
         if phase == .sweep, reduced { alpha *= CGFloat(max(0, 1 - (now - sweepAt) / Scn.fade)) }
         videoRoot.opacity = Float(alpha)
