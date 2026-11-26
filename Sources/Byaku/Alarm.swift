@@ -180,6 +180,7 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate 
             self.t += Double(frames) / rate
             return noErr
         }
+        src.volume = Tokens.Away.sirenTrim  // the clipped square is far denser than the system sounds at the same gain
         e.attach(src)
         e.connect(src, to: e.mainMixerNode, format: AVAudioFormat(standardFormatWithSampleRate: rate, channels: 1))
         return e
