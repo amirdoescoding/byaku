@@ -28,7 +28,7 @@ final class AppController: NSObject, NSMenuDelegate {
     private let defaults = UserDefaults.standard
     private let banner = BannerPanel(), overlay = WatchOverlay()
     private var lifted = false, bannerClosed = false  // "Lift for now" / × : until the next separate alert
-    private enum Key { static let mode = "mode", banner = "banner", sound = "sound", guardOn = "guard", alarmVolume = "alarmVolume", alarmSound = "alarmSound" }
+    private enum Key { static let mode = "mode", banner = "banner", sound = "sound", guardOn = "guard", alarmVolume = "alarmVolume", alarmSound = "alarmSound", onboarded = "onboarded" }
     /// Persisted so Guard resumes at launch (and at login) if it was on at quit.
     private var guardOn: Bool {
         get { defaults.bool(forKey: Key.guardOn) }
@@ -57,6 +57,7 @@ final class AppController: NSObject, NSMenuDelegate {
     private var enrollCam: Camera?
     private var enrollRun = 0  // bumps on cancel/retry so stale callbacks are dropped
     private var countingRun = -1  // the run whose countdown has begun (main thread)
+    private var onboarding: OnboardingFlow?  // first run, or "Welcome tour…"
 
     init(model: String) {
         super.init()
@@ -76,6 +77,7 @@ final class AppController: NSObject, NSMenuDelegate {
                                                             name: .init("com.apple.screenIsUnlocked"), object: nil)
         render()
         if guardOn { if owner != nil { startGuard() } else { guardOn = false } }
+        if !defaults.bool(forKey: Key.onboarded) { DispatchQueue.main.async { [weak self] in self?.showOnboarding() } }
     }
 
     // MARK: state → icon + menu
@@ -121,7 +123,9 @@ final class AppController: NSObject, NSMenuDelegate {
         }
     }
 
-    func menuDidClose(_ menu: NSMenu) { awayNote = nil }
+    func menuDidClose(_ menu: NSMenu) { awayNote = nil; onboarding?.menuClosed() }
+    func menuWillOpen(_ menu: NSMenu) { if onboarding?.touring == true { onboarding?.menuOpened(menu) } }
+    func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) { if onboarding?.touring == true { onboarding?.highlight(item) } }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
@@ -194,12 +198,13 @@ final class AppController: NSObject, NSMenuDelegate {
         menu.addItem(b); menu.addItem(snd)
         menu.addItem(.separator())
         let setup = entry(owner == nil ? "Set up face…" : "Set up face again…", #selector(setUpFace), key: "e")
-        setup.isEnabled = !awayOn
+        setup.isEnabled = !awayOn && onboarding == nil  // one face UI at a time (they share enrollCam)
         menu.addItem(setup)
         let del = entry("Delete face data", #selector(deleteFace))
         del.isEnabled = owner != nil && !awayOn
         menu.addItem(del)
         menu.addItem(.separator())
+        menu.addItem(entry("Welcome tour…", #selector(showOnboarding)))
         if Bundle.main.bundleURL.pathExtension == "app" {  // a terminal-run CLI has no bundle to register
             let login = entry("Open at login", #selector(toggleLogin))
             login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -472,7 +477,7 @@ final class AppController: NSObject, NSMenuDelegate {
     }
 
     private func capture() {
-        guard let embedder else { panel?.show(.failed("The face model is missing.")); return }
+        guard let embedder else { showEnroll(.failed("The face model is missing.")); return }
         if guardCam != nil { guardCam?.stop(); guardCam = nil; set(.off) }  // one camera user at a time; Guard resumes after
         enrollCam?.stop()
         enrollRun += 1
@@ -480,7 +485,7 @@ final class AppController: NSObject, NSMenuDelegate {
         let cam = Camera(fps: 5)
         cam.embed = embedder
         enrollCam = cam
-        panel?.show(.starting)
+        showEnroll(.starting)
         DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.startTimeout) { [weak self] in  // no first frame: give up
             if self?.enrollCam === cam, self?.countingRun != run { self?.finish(run, .failed("The camera didn't start. Try again.")) }
         }
@@ -498,7 +503,7 @@ final class AppController: NSObject, NSMenuDelegate {
         start(cam) { [weak self] error in
             guard let self, run == self.enrollRun else { return }
             self.enrollCam = nil
-            self.panel?.show(AVCaptureDevice.authorizationStatus(for: .video) == .denied ? .cameraDenied : .failed("The camera is unavailable."))
+            self.showEnroll(AVCaptureDevice.authorizationStatus(for: .video) == .denied ? .cameraDenied : .failed("The camera is unavailable."))
         }
     }
 
@@ -514,7 +519,7 @@ final class AppController: NSObject, NSMenuDelegate {
             return
         }
         countingRun = run
-        panel?.show(.counting(n))
+        showEnroll(.counting(n))
         DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.countStep) { [weak self] in
             self?.countdown(run: run, cam: cam, from: n - 1, frames: frames)
         }
@@ -524,22 +529,52 @@ final class AppController: NSObject, NSMenuDelegate {
         guard run == enrollRun else { return }
         enrollRun += 1  // stop the countdown and late callbacks
         enrollCam?.stop(); enrollCam = nil
-        panel?.show(result)
+        showEnroll(result)
         render()
     }
 
     /// Cancel, Done, Esc, lock: release the camera now, keep nothing partial, resume Guard if it was on.
     private func endEnrollment() {
+        stopScan()
+        panel?.dismiss()
+    }
+
+    /// Stop the camera and drop late callbacks; resume Guard if it was on.
+    private func stopScan() {
         enrollRun += 1
         enrollCam?.stop(); enrollCam = nil
-        panel?.dismiss()
         if guardOn, guardCam == nil, owner != nil, !awayOn { startGuard() }  // Away armed: disarm resumes Guard
     }
 
     @objc private func screenLocked() {
         if panel?.isVisible == true { endEnrollment() }
+        if onboarding?.scanning == true { stopScan(); onboarding?.scanStopped() }
         if msgPanel?.isVisible == true { endMessage() }
         if state == .alert { lifted = true; syncActions() }  // nothing to shield behind the lock screen
+    }
+
+    /// Enrollment phases go to the onboarding window while it hosts the scan, else to the Set up face panel.
+    private func showEnroll(_ p: EnrollPanel.Phase) {
+        if let o = onboarding, o.scanning { o.showFace(p) } else { panel?.show(p) }
+    }
+
+    // MARK: onboarding (docs/designs/onboarding.md)
+
+    @objc private func showOnboarding() {
+        if let o = onboarding { o.bringForward(); return }
+        if panel?.isVisible == true { endEnrollment() }  // one face UI at a time
+        let o = OnboardingFlow(hasOwner: owner != nil)
+        o.onScan = { [weak self] in self?.capture() }
+        o.onStopScan = { [weak self] in self?.stopScan() }
+        o.onOpenSettings = { [weak self] in self?.openCameraSettings() }
+        o.onOpenMenu = { [weak self] in self?.item.button?.performClick(nil) }
+        o.statusFrame = { [weak self] in
+            guard let b = self?.item.button, let w = b.window else { return nil }
+            return w.convertToScreen(b.convert(b.bounds, to: nil))
+        }
+        o.onDone = { [weak self] in self?.defaults.set(true, forKey: Key.onboarded); self?.onboarding = nil }
+        onboarding = o
+        o.start()
     }
 
     // MARK: other actions

@@ -1,13 +1,10 @@
 # Restart
 
-**2026-11-26**: PR11 `feat/away-sounds` (open, waiting for the user's confirmation). Away is finished for v0.1:
-- Alarm sound picker: Siren + macOS sounds. The menu stays open and each pick plays 1.5 s.
-- Recorded message panel: record, play, record again, delete, plus a ×.
-- The sound and the message play together. Levels were set by ear with the user (toneGain 0.45, sirenTrim 0.25).
-- Play test and the slider blip are removed.
+**2026-11-26**: PR12 `feat/onboarding` (open, waiting for the user's confirmation). Onboarding for the public release (2026-11-27):
+- Welcome → face (existing 5 s scan inside the window) → tour on the real menu (mascot flies to the menu bar, coach bubble follows
+  the hovered row, blinks, gets "stressed" after 6 s idle) → founder video (`app/founder.mp4`, 5.3 MB, location stripped) with
+  lockup intro/outro (the mark flies into the frame's corner and back out to a thanks card).
+- Synthesised sounds (whoosh, brow flick). Spec `docs/designs/onboarding.md`, DESIGN.md §12, prototype `design/onboarding/motion.html`.
+- The user walked through it on hardware several times and OK'd it ("ok good continue").
 
-The user checked everything on their Mac: "everything works".
-
-Open from PR10: tag `v0.1.0` after the user OKs the push. The public release is planned for 2026-11-27.
-
-Next (from TODOS): the covered-lens fail-closed gap, or the small picker/panel nits listed at the top of TODOS.
+Next: PR B guided face scan with a circular preview (TODOS), or tag `v0.1.0` for the release once PR12 merges.

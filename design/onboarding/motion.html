@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>byaku onboarding mascot: motion prototype</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* Colours = Sources/Byaku/Tokens.swift. Easing = Tokens easeOut. No gradients, no glow. */
+:root{--ease:cubic-bezier(0.23,1,0.32,1);--surface:#FFFFFF;--line:#E1E0E6;--ink:#0E0D12;--bg:#F5F5F7;--mute:#66636F;--accent:#6A5DB8;--on-accent:#FFFFFF;--shadow:rgba(0,0,0,.08)}
+[data-theme=dark]{--surface:#17161C;--line:#25232C;--ink:#ECEBF0;--bg:#0E0D12;--mute:#8F8C99;--accent:#C8BFEF;--on-accent:#0E0D12;--shadow:rgba(0,0,0,.3)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+header{position:sticky;top:0;z-index:50;display:flex;gap:24px;align-items:center;padding:10px 24px;background:var(--surface);border-bottom:1px solid var(--line)}
+header h1{font-size:14px;font-weight:600;margin:0 auto 0 0}
+label.sw{display:flex;gap:8px;align-items:center;cursor:pointer;color:var(--mute)}
+main{max-width:1000px;margin:0 auto;padding:32px 24px 80px}
+section{margin-bottom:56px}
+h2{font-size:20px;font-weight:600;margin:0 0 4px}
+p.note{color:var(--mute);margin:0 0 16px;max-width:70ch}
+button{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;transition:background-color 120ms var(--ease),transform 100ms var(--ease)}
+button:hover{background:var(--bg)}
+button:active{transform:scale(.97)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.big{display:flex;align-items:center;justify-content:center;height:260px}
+.big svg{width:160px;height:160px;overflow:visible}
+.mk .ring{fill:none;stroke:var(--accent);stroke-width:2.25}
+.mk .bl{fill:var(--accent)}
+table{border-collapse:collapse;width:100%;font-size:12px;margin-top:12px}
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mute);font-weight:500}
+td.n{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px}
+/* ---- fake desktop ---- */
+#stage{position:relative;width:960px;height:580px;overflow:hidden;background:var(--bg);border:1px solid var(--line);border-radius:12px;user-select:none}
+#bar{position:absolute;left:0;right:0;top:0;height:28px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:0 14px;font-size:12px;color:var(--mute)}
+#si{width:24px;height:22px;display:grid;place-items:center;border-radius:5px;margin-right:34px}
+#si svg{width:16px;height:16px}
+#si .ring{fill:none;stroke:var(--ink);stroke-width:3}#si .bl{fill:var(--ink)}
+#win{position:absolute;left:270px;top:150px;width:420px;height:290px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 2px 8px var(--shadow);text-align:center;padding:24px;opacity:1;transition:opacity 200ms var(--ease)}
+#win.hide{opacity:0;pointer-events:none;transition-duration:150ms}
+#slot{width:112px;height:112px;margin:0 auto 12px}
+#win h3{margin:0 0 4px;font-size:17px;font-weight:600}
+#win p{margin:0 0 16px;color:var(--mute)}
+#win .row{justify-content:center;margin:0}
+#menu{position:absolute;right:56px;top:32px;width:264px;padding:5px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 8px var(--shadow);font-size:13px;opacity:0;pointer-events:none;transform-origin:top right;transform:scale(.96);transition:opacity 150ms var(--ease),transform 150ms var(--ease)}
+#menu.open{opacity:1;pointer-events:auto;transform:none;transition-duration:200ms}
+.rm #menu{transform:none!important;transition-duration:150ms!important}
+.mi{position:relative;display:flex;align-items:center;height:26px;padding:0 10px 0 20px;border-radius:5px;gap:8px}
+.mi.on{background:var(--bg)}
+.mi .k{margin-left:auto;color:var(--mute)}
+.mi .dot{position:absolute;left:7px;top:10px;width:6px;height:6px;border-radius:50%;background:var(--accent);transition:opacity 150ms var(--ease)}
+.mi.seen .dot{opacity:0}
+.sep{height:1px;background:var(--line);margin:4px 6px}
+.vol{margin-left:auto;width:110px;height:4px;border-radius:2px;background:var(--line);position:relative}
+.vol i{position:absolute;left:0;top:0;bottom:0;width:60%;background:var(--accent);border-radius:2px}
+.vol b{position:absolute;left:calc(60% - 6px);top:-4px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:1px solid var(--mute)}
+#bubble{position:absolute;width:264px;height:64px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 8px var(--shadow);padding:10px 12px 10px 60px;font-size:13px;line-height:1.35;opacity:0;pointer-events:none;transition:opacity 150ms var(--ease);display:flex;align-items:center}
+#bubble.open{opacity:1;transition-duration:200ms;pointer-events:auto}
+#arrow{position:absolute;right:-6px;width:10px;height:10px;background:var(--surface);border-top:1px solid var(--line);border-right:1px solid var(--line);transform:rotate(45deg)}
+#tm{position:absolute;left:0;top:0;width:64px;height:64px;overflow:visible;transform-origin:0 0;pointer-events:none;z-index:20}
+#stage-hint{position:absolute;left:12px;bottom:10px;color:var(--mute);font-size:12px}
+/* ---- lockup ---- */
+#lkstage{position:relative;height:460px;overflow:hidden}
+#frame{position:absolute;left:50%;top:50%;width:560px;height:315px;margin:-158px 0 0 -280px;border-radius:12px;background:var(--line);overflow:hidden;opacity:0;transform:scale(.97)}
+#frame .ph{position:absolute;inset:0;display:grid;place-items:center;color:var(--ink);font-size:13px}
+#frame .prog{position:absolute;left:0;bottom:0;height:3px;width:0;background:var(--mute)}
+#scrim{position:absolute;inset:0;background:var(--surface);opacity:0}
+#lkmark{position:absolute;left:0;top:0;width:64px;height:64px;overflow:visible;transform-origin:0 0;z-index:3;color:var(--accent);transition:color 300ms var(--ease)}
+#lkmark .ring{stroke:currentColor}#lkmark .bl{fill:currentColor}
+#lkmark.corner{color:var(--ink)}
+#lkword{position:absolute;height:44px;overflow:visible;opacity:0;z-index:3}
+#lkword path{fill:var(--ink)}
+#thanks{position:absolute;left:0;right:0;text-align:center;z-index:3}
+#thanks p{margin:0 0 16px;color:var(--mute);opacity:0}
+#thanks .row{justify-content:center;margin:0}
+#thanks button{opacity:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>byaku onboarding mascot: motion prototype</h1>
+  <label class="sw"><input type="checkbox" id="rm"> Reduce Motion</label>
+  <label class="sw"><input type="checkbox" id="dark" checked> Dark</label>
+</header>
+<main>
+
+<section>
+  <h2>1. Mascot expressions</h2>
+  <p class="note">Every channel is a spring; a new expression only changes targets, so clicking mid-motion retargets from the current value and velocity (CA presentation-layer retargeting). Use "Stress" to interrupt every 150 ms.</p>
+  <div class="panel big"><svg id="m1" class="mk" viewBox="0 0 64 64"></svg></div>
+  <div class="row" id="ctl">
+    <button data-x="idle">idle</button><button data-x="raise">raise</button><button data-x="frown">frown</button><button data-x="focus">focus</button>
+    <button data-x="look:1:1">look ↗</button><button data-x="look:0:1">look ↑</button><button data-x="look:-1:0">look ←</button><button data-x="look:1:0">look →</button>
+    <button id="blinknow">blink now</button><button id="stress">stress</button>
+    <label class="sw"><input type="checkbox" id="hold"> hold pose</label>
+  </div>
+  <table id="t1"></table>
+</section>
+
+<section>
+  <h2>2. Tour launch</h2>
+  <p class="note">Window → mascot looks up-right → "Show me" → curved spring flight to the status item → menu grows from the status item → coach bubble docks left of the menu. Hover rows. Click outside the menu to return.</p>
+  <div class="row"><button id="replay">Replay tour</button></div>
+  <div id="stage">
+    <div id="bar"><span>Mon 9:41</span><span id="si"><svg class="mk" viewBox="0 0 64 64"><path class="ring" d="M58.875 32A26.875 26.875 0 1 1 5.125 32A26.875 26.875 0 1 1 58.875 32"/><path class="bl" d="M19.367 43.375A17 17 0 0 1 26.747 15.832A54.689 54.689 0 0 0 19.367 43.375Z"/><path class="bl" d="M42.466 18.604A17 17 0 0 1 48.495 36.113A104.397 104.397 0 0 0 42.466 18.604Z"/></svg></span></div>
+    <div id="win"><div id="slot"></div><h3>Welcome to byaku</h3><p>A quick tour of the menu bar. About a minute.</p><div class="row"><button>Skip</button><button class="primary" id="show">Show me</button></div></div>
+    <div id="menu"></div>
+    <div id="bubble"><div id="arrow"></div><span id="btxt"></span></div>
+    <svg id="tm" class="mk" viewBox="0 0 64 64"></svg>
+    <span id="stage-hint"></span>
+  </div>
+  <table id="t2"></table>
+</section>
+
+<section>
+  <h2>3. Founder video: intro / outro</h2>
+  <p class="note">One mark from start to finish. Intro: the ring draws, the blades wake up (raise, then settle), a blink, and the wordmark rises. The mark then flies into the frame's top-right corner and becomes the corner logo while the video grows in under it. Outro: the last frame settles behind a scrim, and the corner mark flies back out, blinks, smiles, and brings the thank-you card with it. It never ends on an empty card.</p>
+  <div class="row"><button id="pin">Play intro</button><button id="pout">Play outro</button><button id="pall">Intro → video → outro</button></div>
+  <div class="panel" id="lkstage">
+    <div id="frame"><div class="ph">founder video (placeholder)</div><div class="prog"></div><div id="scrim"></div></div>
+    <svg id="lkmark" class="mk" viewBox="0 0 64 64"></svg>
+    <svg id="lkword" viewBox="5.10 -78.00 257.50 101.00"><path d="M54.300000000000004 -23.5Q54.300000000000004 -16.7 51.0 -11.1Q47.7 -5.5 42.1 -2.2Q36.5 1.1 29.700000000000003 1.1Q22.900000000000002 1.1 17.3 -2.2Q11.700000000000001 -5.5 8.4 -11.1Q5.1000000000000005 -16.7 5.1000000000000005 -23.5Q5.1000000000000005 -30.3 8.4 -35.9Q11.700000000000001 -41.5 17.3 -44.8Q22.900000000000002 -48.1 29.700000000000003 -48.1Q36.5 -48.1 42.1 -44.8Q47.7 -41.5 51.0 -35.9Q54.300000000000004 -30.3 54.300000000000004 -23.5ZM44.300000000000004 -23.5Q44.300000000000004 -27.900000000000002 42.35000000000001 -31.4Q40.400000000000006 -34.9 37.050000000000004 -36.95Q33.7 -39.0 29.5 -39.0Q25.400000000000002 -39.0 22.05 -36.95Q18.7 -34.9 16.75 -31.4Q14.8 -27.900000000000002 14.8 -23.5Q14.8 -19.1 16.75 -15.600000000000001Q18.7 -12.100000000000001 22.05 -10.05Q25.400000000000002 -8.0 29.5 -8.0Q33.7 -8.0 37.050000000000004 -10.05Q40.400000000000006 -12.100000000000001 42.35000000000001 -15.600000000000001Q44.300000000000004 -19.1 44.300000000000004 -23.5ZM5.1000000000000005 0.0V-78.0H14.8V0.0ZM72.7 23.0 96.30000000000001 -47.0H106.20000000000002L82.5 23.0ZM80.10000000000001 0.0 56.7 -47.0H67.30000000000001L90.70000000000002 0.0ZM159.3 0.0H149.60000000000002V-47.0H159.3ZM110.10000000000001 -23.5Q110.10000000000001 -30.3 113.4 -35.9Q116.7 -41.5 122.30000000000001 -44.8Q127.9 -48.1 134.7 -48.1Q141.5 -48.1 147.05 -44.8Q152.60000000000002 -41.5 155.95000000000002 -35.9Q159.3 -30.3 159.3 -23.5Q159.3 -16.7 155.95000000000002 -11.1Q152.60000000000002 -5.5 147.05 -2.2Q141.5 1.1 134.7 1.1Q127.9 1.1 122.30000000000001 -2.2Q116.7 -5.5 113.4 -11.1Q110.10000000000001 -16.7 110.10000000000001 -23.5ZM120.10000000000001 -23.5Q120.10000000000001 -19.1 122.05000000000001 -15.600000000000001Q124.0 -12.100000000000001 127.35 -10.05Q130.7 -8.0 134.8 -8.0Q139.0 -8.0 142.35 -10.05Q145.7 -12.100000000000001 147.65 -15.600000000000001Q149.60000000000002 -19.1 149.60000000000002 -23.5Q149.60000000000002 -27.900000000000002 147.65 -31.4Q145.7 -34.9 142.35 -36.95Q139.0 -39.0 134.8 -39.0Q130.7 -39.0 127.35 -36.95Q124.0 -34.9 122.05000000000001 -31.4Q120.10000000000001 -27.900000000000002 120.10000000000001 -23.5ZM169.5 0.0V-78.0H179.20000000000002V0.0ZM171.3 -20.900000000000002 195.60000000000002 -47.0H208.70000000000002L177.4 -15.100000000000001ZM197.60000000000002 0.0 180.6 -30.400000000000002H191.8L208.70000000000002 0.0ZM262.6 -47.0V0.0H252.8V-47.0ZM262.6 -22.900000000000002Q262.6 -17.900000000000002 260.70000000000005 -13.55Q258.8 -9.200000000000001 255.5 -5.950000000000001Q252.20000000000002 -2.7 247.85000000000002 -0.8Q243.5 1.1 238.5 1.1Q233.5 1.1 229.15 -0.8Q224.8 -2.7 221.5 -5.950000000000001Q218.20000000000002 -9.200000000000001 216.35000000000002 -13.55Q214.5 -17.900000000000002 214.5 -22.900000000000002V-47.0H224.20000000000002V-22.900000000000002Q224.20000000000002 -18.7 226.10000000000002 -15.3Q228.0 -11.9 231.25 -9.95Q234.5 -8.0 238.5 -8.0Q242.60000000000002 -8.0 245.85000000000002 -9.95Q249.10000000000002 -11.9 250.95000000000002 -15.3Q252.8 -18.7 252.8 -22.900000000000002Z"/></svg>
+    <div id="thanks"><p>Thanks for trying byaku.</p><div class="row"><button>Replay</button><button>Contribute on GitHub</button><button class="primary">Done</button></div></div>
+  </div>
+  <table id="t3"></table>
+</section>
+
+<section>
+  <h2>4. Reduce Motion and shared rules</h2>
+  <table id="t4"></table>
+</section>
+</main>
+
+<script>
+"use strict";
+const EASE = "cubic-bezier(0.23,1,0.32,1)";
+let RM = false;
+const $ = s => document.querySelector(s);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- spring engine (same ODE as CASpringAnimation: m x'' = -k (x-t) - c x') ---------- */
+const SP = {  // m, stiffness k, damping c
+  neutral:{m:1,k:300,c:26}, raise:{m:1,k:380,c:22}, frown:{m:1,k:220,c:28}, focus:{m:1,k:260,c:30}, look:{m:1,k:300,c:26},
+  blinkClose:{m:1,k:900,c:60}, blinkOpen:{m:1,k:500,c:32},
+  flightX:{m:1,k:220,c:26}, flightY:{m:1,k:160,c:22}, flightS:{m:1,k:260,c:26}, dock:{m:1,k:300,c:30}, bubble:{m:1,k:300,c:30},
+};
+const zeta = p => p.c / (2 * Math.sqrt(p.k * p.m));
+const settle = p => 8 * p.m / p.c;          // ~2% settling time, s
+const active = new Set(), renders = new Set();
+let raf = 0, last = 0;
+class S {
+  constructor(v) { this.x = v; this.v = 0; this.t = v; this.p = SP.neutral; }
+  go(t, p) { this.t = t; this.p = p; if (RM) { this.x = t; this.v = 0; } active.add(this); wake(); }  // retarget keeps x and v
+}
+function wake() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(loop); } }
+function loop(now) {
+  const dt = Math.min((now - last) / 1000, 1 / 30); last = now;
+  const n = Math.ceil(dt * 240), h = dt / n;
+  for (const s of active) {
+    for (let i = 0; i < n; i++) { const a = (-s.p.k * (s.x - s.t) - s.p.c * s.v) / s.p.m; s.v += a * h; s.x += s.v * h; }
+    if (Math.abs(s.x - s.t) < 1e-3 && Math.abs(s.v) < 1e-3) { s.x = s.t; s.v = 0; active.delete(s); }
+  }
+  renders.forEach(f => f());
+  raf = active.size ? requestAnimationFrame(loop) : 0;
+}
+
+/* ---------- mascot ---------- */
+const RING = "M58.875 32A26.875 26.875 0 1 1 5.125 32A26.875 26.875 0 1 1 58.875 32";
+const BL = "M19.367 43.375A17 17 0 0 1 26.747 15.832A54.689 54.689 0 0 0 19.367 43.375Z";
+const BR = "M42.466 18.604A17 17 0 0 1 48.495 36.113A104.397 104.397 0 0 0 42.466 18.604Z";
+const PIV = { L: [19.367, 43.375], R: [48.495, 36.113] };      // rotation pivot = blade base (outer end)
+const CEN = { L: [0, 0], R: [0, 0] };                          // scale origin = bbox centre (measured below)
+// poses. a: mirrored rotation (+ = inner end falls inward), r: same-sign rotation (+ = clockwise), tx: mirrored (+ inward)
+const NEUTRAL = { a: 0, r: 0, tx: 0, ty: 0, sx: 1, sy: 1, gx: 0, gy: 0 };
+const POSES = {
+  raise: { a: -9, ty: -2.5, tx: -0.6 },
+  frown: { a: 16, ty: 2.5, tx: 0.8 },
+  focus: { a: 5, ty: 3, sx: 0.78, sy: 0.96 },
+};
+const look = (dx, dy) => ({ gx: 1.8 * dx, gy: -1.8 * dy, r: 3.5 * dx, ty: dy > 0 ? -1.2 * dy : -0.8 * dy });
+const CH = ["Ltx","Lty","Lr","Lsx","Lsy","Rtx","Rty","Rr","Rsx","Rsy","Gx","Gy","B"];
+function targets(p) {
+  const q = { ...NEUTRAL, ...p };
+  return { Ltx: q.tx, Lty: q.ty, Lr: q.a + q.r, Lsx: q.sx, Lsy: q.sy, Rtx: -q.tx, Rty: q.ty, Rr: -q.a + q.r, Rsx: q.sx, Rsy: q.sy, Gx: q.gx, Gy: q.gy };
+}
+function Mascot(svg) {
+  svg.innerHTML = `<path class="ring" d="${RING}"/><path class="bl" d="${BL}"/><path class="bl" d="${BR}"/>`;
+  const [, bl, br] = svg.children, ch = {};
+  const n0 = targets({}); CH.forEach(k => ch[k] = new S(k === "B" ? 1 : n0[k]));
+  const tf = (s, c, piv, cen) => `translate(${ch.Gx.x + ch[s + "tx"].x} ${ch.Gy.x + ch[s + "ty"].x}) translate(${piv}) rotate(${ch[s + "r"].x}) translate(${-piv[0]} ${-piv[1]}) translate(${cen}) scale(${ch[s + "sx"].x} ${ch[s + "sy"].x * ch.B.x}) translate(${-cen[0]} ${-cen[1]})`;
+  const render = () => { bl.setAttribute("transform", tf("L", 0, PIV.L, CEN.L)); br.setAttribute("transform", tf("R", 0, PIV.R, CEN.R)); };
+  renders.add(render); render();
+  let idleOn = false, timer = 0;
+  const m = {
+    svg,
+    pose(p, sp = SP.neutral) {
+      const t = targets(p); for (const k in t) ch[k].go(t[k], sp);
+      if (RM) svg.animate({ opacity: [0.35, 1] }, { duration: 150, easing: EASE });   // Reduce Motion: cross-fade instead of motion
+    },
+    blink() { if (RM) return; ch.B.go(0.12, SP.blinkClose); setTimeout(() => ch.B.go(1, SP.blinkOpen), 90); },
+    idle(on) { idleOn = on; clearTimeout(timer); if (on) (function next() { timer = setTimeout(() => { if (idleOn) { m.blink(); next(); } }, 4000 + Math.random() * 2000); })(); },
+  };
+  return m;
+}
+// measure blade bbox centres once
+{ const t = document.createElementNS("http://www.w3.org/2000/svg", "svg"); t.setAttribute("viewBox", "0 0 64 64"); t.style.cssText = "position:absolute;width:64px;height:64px;visibility:hidden";
+  t.innerHTML = `<path d="${BL}"/><path d="${BR}"/>`; document.body.appendChild(t);
+  [["L", 0], ["R", 1]].forEach(([k, i]) => { const b = t.children[i].getBBox(); CEN[k] = [+(b.x + b.width / 2).toFixed(2), +(b.y + b.height / 2).toFixed(2)]; });
+  t.remove(); }
+
+/* ---------- section 1 ---------- */
+const M1 = Mascot($("#m1")); M1.idle(true);
+let ret = 0, stressT = 0;
+function play(x) {
+  clearTimeout(ret);
+  const [name, dx, dy] = x.split(":");
+  if (name === "idle") { M1.pose({}); M1.idle(true); return; }
+  if (name === "look") M1.pose(look(+dx, +dy), SP.look); else M1.pose(POSES[name], SP[name]);
+  if (!$("#hold").checked) ret = setTimeout(() => M1.pose({}), 1400);
+}
+$("#ctl").addEventListener("click", e => { const x = e.target.dataset.x; if (x) play(x); });
+$("#blinknow").onclick = () => M1.blink();
+$("#stress").onclick = () => {
+  if (stressT) { clearInterval(stressT); stressT = 0; $("#stress").textContent = "stress"; return; }
+  const seq = ["raise", "frown", "focus", "look:1:1", "look:-1:0", "raise"]; let i = 0;
+  $("#stress").textContent = "stop"; stressT = setInterval(() => { clearTimeout(ret); play(seq[i++ % seq.length]); }, 150);
+};
+
+/* ---------- section 2: tour ---------- */
+const stage = $("#stage"), win = $("#win"), menuEl = $("#menu"), bubble = $("#bubble"), btxt = $("#btxt"), arrow = $("#arrow"), tmEl = $("#tm");
+const ROWS = [  // copy as shipped (CoachOverlay.coach in Sources/Byaku/Onboarding.swift)
+  ["Guard", "⌘G", "Watches the camera. If someone else looks, you get a heads-up."],
+  ["Away", "⌘A", "Stepping away? If anyone looks, the alarm sounds and the Mac locks."],
+  ["vol", "", "How loud the Away alarm is. It never goes fully silent."],
+  ["Alarm sound", "›", "Pick the sound the alarm plays. Choosing one plays a short preview."],
+  ["Message…", "", "Record a short line to speak over the alarm. Up to 8 seconds."],
+  ["Mode", "›", "What Guard does besides the banner: nothing, violet edges, or a dim."],
+  ["Banner", "✓", "A small notice under the menu bar when someone else looks."],
+  ["Sound", "✓", "Adds a short sound to the Guard alert. Off by default."],
+  ["sep"],
+  ["Set up face…", "⌘E", "Saves a face print of you, so byaku knows who not to flag."],
+  ["Delete face data", "", "Removes your saved face print from this Mac. One click, no undo."],
+  ["sep"],
+  ["Welcome tour…", "", "Plays this tour again."],
+  ["Open at login", "✓", "Starts byaku in the menu bar when you log in."],
+  ["Quit byaku", "⌘Q", "Stops watching and closes byaku."],
+];
+const INTRO = "This is the menu. Hover a row and I will tell you what it does.";
+menuEl.innerHTML = ROWS.map((r, i) => r[0] === "sep" ? `<div class="sep"></div>` :
+  `<div class="mi" data-i="${i}"><span class="dot"></span>${r[0] === "vol" ? `<span>Volume</span><span class="vol"><i></i><b></b></span>` : `<span>${r[0]}</span><span class="k">${r[1]}</span>`}</div>`).join("");
+const rowEls = [...menuEl.querySelectorAll(".mi")];
+const relRect = el => { const a = el.getBoundingClientRect(), s = stage.getBoundingClientRect(); return { l: a.left - s.left, t: a.top - s.top, w: a.width, h: a.height, cx: a.left - s.left + a.width / 2, cy: a.top - s.top + a.height / 2, r: a.right - s.left, b: a.bottom - s.top }; };
+
+const M2 = Mascot(tmEl), cx = new S(0), cy = new S(0), sc = new S(1.75), ry = new S(0);
+const BH = 64, BW = 264;
+let state = "window", visited = new Set(), seq = 0;
+const place = () => { const s = sc.x; tmEl.style.transform = `translate(${cx.x - 32 * s}px,${cy.x - 32 * s}px) scale(${s})`; };
+const bTop = y => Math.max(36, y - BH / 2);
+function dockSync() {
+  if (state !== "menu") return;
+  const top = bTop(ry.x); bubble.style.top = top + "px"; arrow.style.top = (ry.x - top - 5) + "px";
+  const y = bTop(ry.t) + BH / 2; if (cy.t !== y) cy.go(y, SP.dock);
+}
+renders.add(place); renders.add(dockSync);
+const anchors = {
+  card: () => { const r = relRect($("#slot")); return { x: r.cx, y: r.cy, s: r.w / 64 }; },
+  under: () => { const r = relRect($("#si")); return { x: r.cx, y: r.b + 26, s: 28 / 64 }; },
+  dock: () => ({ x: bubble.offsetLeft + 12 + 20, y: bTop(ry.t) + BH / 2, s: 40 / 64 }),
+};
+function setAnchor(a, flight) { cx.go(a.x, flight ? SP.flightX : SP.dock); cy.go(a.y, flight ? SP.flightY : SP.dock); sc.go(a.s, flight ? SP.flightS : SP.dock); }
+async function moveTo(a) {
+  if (RM) { await tmEl.animate({ opacity: [1, 0] }, { duration: 100, easing: EASE, fill: "forwards" }).finished; setAnchor(a, true); place();
+    await tmEl.animate({ opacity: [0, 1] }, { duration: 150, easing: EASE, fill: "forwards" }).finished; }
+  else setAnchor(a, true);
+}
+function snapTo(a) { cx.x = cx.t = a.x; cy.x = cy.t = a.y; sc.x = sc.t = a.s; [cx, cy, sc].forEach(s => (s.v = 0)); place(); }
+function say(t) { btxt.textContent = t; btxt.animate({ opacity: [0, 1] }, { duration: 120, easing: EASE }); }
+
+function reset() {
+  seq++; state = "window"; visited.clear();
+  rowEls.forEach(r => r.classList.remove("seen", "on"));
+  menuEl.classList.remove("open"); bubble.classList.remove("open"); win.classList.remove("hide");
+  M2.pose({}); snapTo(anchors.card()); M2.idle(true); lookAtBar();
+}
+let lookT = 0;
+function lookAtBar() { clearTimeout(lookT); const id = seq; lookT = setTimeout(() => { if (state === "window" && id === seq) M2.pose(look(1, 1), SP.look); }, 900); }
+async function launch() {
+  if (state !== "window") return; const id = ++seq; state = "flying"; clearTimeout(lookT);
+  M2.pose({}); M2.idle(false);
+  win.classList.add("hide");
+  await moveTo(anchors.under()); await wait(RM ? 0 : 380); if (id !== seq) return;
+  // open menu
+  rowEls.forEach(r => r.classList.remove("seen", "on")); visited.clear();
+  menuEl.classList.add("open");
+  const m = relRect(menuEl); bubble.style.left = (m.l - 14 - BW) + "px";
+  ry.x = ry.t = relRect(rowEls[0]).cy; ry.v = 0; state = "menu";
+  const top = bTop(ry.x); bubble.style.top = top + "px"; arrow.style.top = (ry.x - top - 5) + "px";
+  btxt.textContent = INTRO; bubble.classList.add("open");
+  await moveTo({ x: m.l - 14 - BW + 32, y: top + BH / 2, s: 40 / 64 });
+  if (id !== seq || state !== "menu") return;
+  M2.pose(POSES.raise, SP.raise); await wait(RM ? 0 : 450); if (state === "menu") M2.pose(look(1, 0), SP.look);
+}
+async function closeMenu() {
+  if (state !== "menu") return; const id = ++seq; state = "returning";
+  menuEl.classList.remove("open"); bubble.classList.remove("open"); M2.pose({});
+  await wait(RM ? 0 : 100); win.classList.remove("hide");
+  await moveTo(anchors.card()); await wait(RM ? 0 : 350); if (id !== seq) return;
+  state = "window"; M2.idle(true); lookAtBar();
+}
+rowEls.forEach(el => el.addEventListener("pointerenter", () => {
+  if (state !== "menu") return; const i = +el.dataset.i;
+  rowEls.forEach(r => r.classList.remove("on")); el.classList.add("on");
+  ry.go(relRect(el).cy, SP.bubble);
+  say(ROWS[i][2]); visited.add(i); el.classList.add("seen");
+  if (visited.size === rowEls.length) { M2.pose(POSES.raise, SP.raise); setTimeout(() => state === "menu" && M2.pose(look(1, 0), SP.look), 700); }
+}));
+stage.addEventListener("pointerdown", e => { if (state === "menu" && !menuEl.contains(e.target) && !bubble.contains(e.target)) closeMenu(); });
+$("#show").onclick = launch; $("#replay").onclick = reset;
+
+/* ---------- section 3: intro / outro (one mark, never leaves) ---------- */
+const lkSt = $("#lkstage"), frame = $("#frame"), scrim = $("#scrim"), prog = $("#frame .prog"), word3 = $("#lkword"), thanks = $("#thanks");
+const M3 = Mascot($("#lkmark"));
+const ring3 = $("#lkmark .ring"), blades3 = [...$("#lkmark").querySelectorAll(".bl")];
+ring3.setAttribute("pathLength", "1"); ring3.style.strokeDasharray = 1.02;
+const SP3 = { fly: { m: 1, k: 210, c: 26 }, flyS: { m: 1, k: 240, c: 28 } };
+const LK = {   // ms
+  ringDraw: 520, bladesAt: 180, bladesFade: 160, blinkAt: 640, wordAt: 560, wordDur: 320, hold: 1500,
+  wordOut: 150, frameIn: 320, cornerSize: 28, cornerInset: 14, bigSize: 84,
+  scrimDur: 360, scrimTo: 0.92, backAt: 120, smileAt: 520, thanksAt: 640, btnStagger: 60,
+};
+const X3 = new S(0), Y3 = new S(0), K3 = new S(1);
+renders.add(() => $("#lkmark").style.transform = `translate(${X3.x}px,${Y3.x}px) scale(${K3.x})`);
+let run3 = 0;
+const fa = (el, kf, dur, delay = 0) => el.animate(kf, { duration: RM ? Math.min(dur, 150) : dur, delay: RM ? 0 : delay, easing: EASE, fill: "both" });
+function spots() {
+  const W = lkSt.clientWidth, H = lkSt.clientHeight, big = LK.bigSize / 64, ww = 44 * 257.5 / 101, gap = 18;
+  const total = LK.bigSize + gap + ww, x0 = (W - total) / 2;
+  const fr = { l: W / 2 - 280, t: H / 2 - 158, w: 560 };
+  return {
+    hero: { x: x0, y: H / 2 - LK.bigSize / 2, k: big }, word: { x: x0 + LK.bigSize + gap, y: H / 2 - 22 },
+    heroUp: { x: x0, y: H / 2 - LK.bigSize / 2 - 44, k: big }, wordUp: { x: x0 + LK.bigSize + gap, y: H / 2 - 22 - 44 },
+    corner: { x: fr.l + fr.w - LK.cornerInset - LK.cornerSize, y: fr.t + LK.cornerInset, k: LK.cornerSize / 64 },
+    thanksY: H / 2 + 20,
+  };
+}
+const put = (p, sp) => { X3.go(p.x, sp); Y3.go(p.y, sp); K3.go(p.k, sp || SP3.flyS); };
+const snap = p => { [[X3, p.x], [Y3, p.y], [K3, p.k]].forEach(([s, v]) => { s.x = s.t = v; s.v = 0; }); renders.forEach(f => f()); };
+function clear3() {
+  run3++; [frame, scrim, prog, word3, ring3, ...blades3, thanks.querySelector("p"), ...thanks.querySelectorAll("button")].forEach(e => e.getAnimations().forEach(a => a.cancel()));
+  $("#lkmark").classList.remove("corner"); M3.idle(false); M3.pose({});
+}
+async function intro() {
+  clear3(); const id = run3, P = spots();
+  word3.style.left = P.word.x + "px"; word3.style.top = P.word.y + "px"; thanks.style.top = P.thanksY + "px";
+  snap(P.hero);
+  fa(ring3, { strokeDashoffset: [1.02, 0] }, LK.ringDraw);
+  M3.pose(POSES.raise, { m: 1, k: 6000, c: 155 });                 // blades start raised (instant)…
+  blades3.forEach(b => fa(b, { opacity: [0, 1] }, LK.bladesFade, LK.bladesAt));
+  setTimeout(() => id === run3 && M3.pose({}, SP.raise), RM ? 0 : LK.bladesAt + 60);  // …and settle: "waking up"
+  setTimeout(() => id === run3 && M3.blink(), LK.blinkAt);
+  fa(word3, { opacity: [0, 1], transform: ["translateY(8px)", "none"] }, LK.wordDur, LK.wordAt);
+  await wait(RM ? 400 : LK.hold); if (id !== run3) return;
+  // handoff: the wordmark leaves, the mark becomes the corner logo, the video grows in under it
+  fa(word3, { opacity: [1, 0] }, LK.wordOut);
+  $("#lkmark").classList.add("corner");
+  if (RM) { fa($("#lkmark"), { opacity: [1, 0] }, 100); await wait(100); snap(P.corner); fa($("#lkmark"), { opacity: [0, 1] }, 150); }
+  else put(P.corner, SP3.fly);
+  fa(frame, { opacity: [0, 1], transform: ["scale(.97)", "none"] }, LK.frameIn, RM ? 0 : 60);
+  await wait(450);
+}
+async function playVideo(ms = 2200) {
+  const id = run3; prog.animate({ width: ["0%", "100%"] }, { duration: ms, easing: "linear", fill: "both" }); await wait(ms); return id === run3;
+}
+async function outro() {
+  const id = run3, P = spots();
+  if (!frame.getAnimations().length) { snap(P.corner); $("#lkmark").classList.add("corner"); fa(frame, { opacity: [1, 1] }, 1); fa(ring3, { strokeDashoffset: [0, 0] }, 1); }
+  word3.style.left = P.wordUp.x + "px"; word3.style.top = P.wordUp.y + "px"; thanks.style.top = P.thanksY + "px";
+  // the last frame settles back; nothing is erased
+  fa(scrim, { opacity: [0, LK.scrimTo] }, LK.scrimDur);
+  fa(frame, { transform: ["none", "scale(.985)"] }, LK.scrimDur);
+  await wait(RM ? 0 : LK.backAt); if (id !== run3) return;
+  $("#lkmark").classList.remove("corner");
+  if (RM) { fa($("#lkmark"), { opacity: [1, 0] }, 100); await wait(100); snap(P.heroUp); fa($("#lkmark"), { opacity: [0, 1] }, 150); }
+  else put(P.heroUp, SP3.fly);
+  fa(word3, { opacity: [0, 1], transform: ["translateY(8px)", "none"] }, LK.wordDur, 260);
+  setTimeout(() => { if (id !== run3) return; M3.blink(); setTimeout(() => id === run3 && M3.pose(POSES.raise, SP.raise), 160); setTimeout(() => id === run3 && M3.pose({}, SP.neutral), 900); }, RM ? 0 : LK.smileAt);
+  fa(thanks.querySelector("p"), { opacity: [0, 1], transform: ["translateY(6px)", "none"] }, 260, LK.thanksAt);
+  thanks.querySelectorAll("button").forEach((btn, i) => fa(btn, { opacity: [0, 1], transform: ["translateY(6px)", "none"] }, 220, LK.thanksAt + 80 + i * LK.btnStagger));
+  await wait(1200); if (id === run3) M3.idle(true);
+}
+$("#pin").onclick = () => intro();
+$("#pout").onclick = () => { clear3(); outro(); };
+$("#pall").onclick = async () => { await intro(); if (await playVideo()) outro(); };
+thanks.querySelector("button").onclick = () => $("#pall").onclick();
+
+/* ---------- parameter tables (generated from the live constants) ---------- */
+const f = (p) => `m ${p.m}, k ${p.k}, c ${p.c}`;
+const z = p => `ζ ${zeta(p).toFixed(2)}, ≈${Math.round(settle(p) * 1000)} ms`;
+const tbl = (el, head, rows) => el.innerHTML = `<tr>${head.map(h => `<th>${h}</th>`).join("")}</tr>` + rows.map(r => `<tr>${r.map((c, i) => `<td class="${i ? "n" : ""}">${c}</td>`).join("")}</tr>`).join("");
+const tv = p => { const q = { ...NEUTRAL, ...p }; return `a ${q.a}° (L +, R −), r ${q.r}°, tx ${q.tx}, ty ${q.ty}, sx ${q.sx}, sy ${q.sy}, group ${q.gx},${q.gy}`; };
+function tables() {
+  const lk_ = look(1, 1);
+  tbl($("#t1"), ["Expression", "Spring (CASpringAnimation)", "Damping / settle", "Targets (SVG units, degrees; relative to rest)"], [
+    ["idle blink", "close " + f(SP.blinkClose) + "<br>open " + f(SP.blinkOpen), z(SP.blinkClose) + " / " + z(SP.blinkOpen), "scaleY ×0.12, then ×1 after 90 ms; every 4.0–6.0 s (random). Off in Reduce Motion."],
+    ["raise", f(SP.raise), z(SP.raise), tv(POSES.raise)],
+    ["frown", f(SP.frown), z(SP.frown), tv(POSES.frown)],
+    ["focus", f(SP.focus), z(SP.focus), tv(POSES.focus)],
+    ["look(1,1) up-right", f(SP.look), z(SP.look), tv(lk_) + ". General: group = (1.8dx, −1.8dy), r = 3.5dx, ty = −1.2dy (up) or −0.8dy (down)."],
+    ["return to neutral", f(SP.neutral), z(SP.neutral), "all channels to rest"],
+    ["pivots", "n/a", "n/a", `rotate about blade base: L (${PIV.L}), R (${PIV.R}); scale about bbox centre: L (${CEN.L}), R (${CEN.R}). Ring never moves. Per blade transform: translate(group+t) · rotate about base · scale about centre. Sign: positive = clockwise in SVG (y down).`],
+  ]);
+  tbl($("#t2"), ["Step", "Parameters"], [
+    ["look up-right (window)", `after 900 ms: ${f(SP.look)} (${z(SP.look)}); look(1,1)`],
+    ["flight (Show me)", `curved path from two independent springs: x ${f(SP.flightX)} (${z(SP.flightX)}), y ${f(SP.flightY)} (${z(SP.flightY)}), scale ${f(SP.flightS)} (${z(SP.flightS)}). x leads, y lags, so the path arcs. Scale 112 px → 28 px (1.75 → 0.4375). Target = 26 px below the status item. Runs about 360 ms: a travel, so it may pass the 300 ms rule (flag).`],
+    ["window out / back", `opacity 1→0, 150 ms ${EASE}; back 200 ms, starts 100 ms after menu closes`],
+    ["menu open", `opens 380 ms after flight starts. opacity 0→1 and scale 0.96→1, origin = top-right (status item), 200 ms ${EASE}. Close: 150 ms, same curve`],
+    ["bubble in", `opacity 0→1, 200 ms ${EASE}; 14 pt left of the menu, 264×64`],
+    ["mascot dock", `size 40 px (scale 0.625) at bubble left + 32. Brief raise (${f(SP.raise)}) then look(1,0) after 450 ms. Follows the bubble with ${f(SP.dock)} (${z(SP.dock)})`],
+    ["bubble follow (row hover)", `row-centre spring ${f(SP.bubble)} (${z(SP.bubble)}); bubble top = max(36, y−32); arrow tracks the row exactly (arrow y = row y − bubble top). Retargets mid-flight.`],
+    ["text swap", `opacity 0→1, 120 ms ${EASE}`],
+    ["visited dot", `opacity 1→0, 150 ms ${EASE}, 6 px accent dot at row left`],
+    ["return", `same flight springs back to the card slot; window fades in 100 ms after menu close starts`],
+  ]);
+  tbl($("#t3"), ["Beat", "Start", "Duration / spring", "Motion"], [
+    ["ring draws", "0 ms", LK.ringDraw + " ms " + EASE, "stroke-end 0 → 1 (CAShapeLayer strokeEnd)"],
+    ["blades wake", LK.bladesAt + " ms", "fade " + LK.bladesFade + " ms; settle " + f(SP.raise), "appear in the raise pose, spring to neutral"],
+    ["blink", LK.blinkAt + " ms", f(SP.blinkClose) + " / " + f(SP.blinkOpen), "scaleY 0.12 for 90 ms"],
+    ["wordmark", LK.wordAt + " ms", LK.wordDur + " ms " + EASE, "opacity 0→1, y +8 → 0"],
+    ["handoff", LK.hold + " ms", "x/y " + f(SP3.fly) + ", scale " + f(SP3.flyS), `wordmark out ${LK.wordOut} ms; mark flies ${LK.bigSize} → ${LK.cornerSize} pt to the frame's top-right (inset ${LK.cornerInset}); colour accent → ink 300 ms; frame opacity 0→1 + scale 0.97→1, ${LK.frameIn} ms, +60 ms`],
+    ["outro: settle", "video end", LK.scrimDur + " ms " + EASE, `surface scrim 0 → ${LK.scrimTo} over the last frame, frame scale 1 → 0.985`],
+    ["outro: mark returns", "+" + LK.backAt + " ms", "x/y " + f(SP3.fly), "corner → centre (lifted 44 pt for the card), ink → accent"],
+    ["outro: wordmark", "+" + (LK.backAt + 260) + " ms", LK.wordDur + " ms", "rises next to the mark"],
+    ["outro: blink, smile", "+" + LK.smileAt + " ms", "raise " + f(SP.raise) + ", back after 740 ms", "blink, then raise, then neutral; idle blinking resumes"],
+    ["outro: thanks card", "+" + LK.thanksAt + " ms", "260 ms; buttons 220 ms, " + LK.btnStagger + " ms stagger", "text, then Replay · Contribute · Done, y +6 → 0"],
+    ["Reduce Motion", "n/a", "≤150 ms fades", "no draw, no flight: fade out, jump, fade in; text fades only"],
+  ]);
+  tbl($("#t4"), ["Rule", "Value"], [
+    ["Easing (all non-spring)", `${EASE} (Tokens.easeOut). No ease-in anywhere.`],
+    ["Tokens durations", "enter 200, exit 150, hover 120, press 100 ms"],
+    ["Reduce Motion", "Springs snap (no translation, rotation, scale or flight). Pose changes cross-fade the mascot (opacity 0.35→1, 150 ms). Flight: fade out 100 ms, jump, fade in 150 ms. Menu: opacity only, 150 ms, no scale. Lockup: one 150 ms fade, no ring draw. Idle blink off."],
+    ["Colours", "Tokens surface, line, ink, bg, mute, accent. Mark = accent; wordmark = ink; no glow, no gradients."],
+  ]);
+}
+tables();
+
+/* ---------- toggles ---------- */
+$("#rm").onchange = e => { RM = e.target.checked; document.documentElement.classList.toggle("rm", RM); if (RM) { M1.idle(false); M2.idle(false); } else { M1.idle(true); } };
+$("#dark").onchange = e => document.documentElement.dataset.theme = e.target.checked ? "dark" : "light";
+if (matchMedia("(prefers-color-scheme: light)").matches) { $("#dark").checked = false; document.documentElement.dataset.theme = "light"; }
+reset(); intro();  // section 3 starts on the intro
+window.__t = { launch, closeMenu, reset, intro, outro, get state() { return state; }, rowEls, play };
+</script>
+</body>
+</html>

@@ -46,6 +46,11 @@ Actions
   ends, until unlock. Default output unmuted at the alarm volume (CoreAudio `VirtualMainVolume`/`Mute`), restored on stop.
   `MessageRecorder` (`AVAudioRecorder`) records the message from `MessagePanel`; the mic runs only while recording.
 - **Lock** (shipped): `lockScreen()` = `SACLockScreenImmediate` (private, dlopen). `lock-test` falls back to `pmset displaysleepnow`.
+- **Onboarding** (shipped, `Onboarding.swift`): `OnboardingFlow` (one borderless floating window, step state machine with a
+  `run` token), `MascotView` (brand mark as CALayers; blades = translate › rotate-about-base › scale layers driven by
+  `springTo`), `CoachOverlay` (full-screen click-through panel at `.popUpMenu + 1` over the real menu; AppController forwards
+  `menuWillOpen` / `willHighlight` / `menuDidClose`), `Sfx` (synthesised WAV NSSounds), `WordmarkView` (tiny SVG path reader).
+  Enrollment phases route through `showEnroll` to the window or the Set up face panel. `founder.mp4` is bundled by `bundle.sh`.
 
 ## Planned layout
 
