@@ -36,3 +36,7 @@
 - 2026-11-26 PR8 Open at login: SMAppService.mainApp works with ad-hoc signing and survives rebuilds at the same path. Guard state is
   persisted (`guard` key) and resumed at launch: the user chose this (camera comes on at login only if Guard was left on).
   `bundle.sh --install` quits the old copy by bundle id (osascript), never `pkill -x byaku` (would kill CLI runs). Build needs Apple silicon (torch 2.7.0 arm64 wheel only).
+- 2026-11-26 PR10 release: no Apple Developer account, so releases are ad-hoc + unnotarized (README: Privacy & Security → Open Anyway;
+  Sequoia dropped right-click → Open). Local builds sign with self-signed "byaku dev" (`scripts/dev-identity.sh`, LibreSSL
+  `/usr/bin/openssl`; Homebrew OpenSSL 3 p12s fail `security import`) so the DR is the cert leaf and rebuilds keep TCC.
+  Models are sha256-pinned in `ml/fetch.py`. CoreML parity passes on GitHub's macos-15 runner (0.99994). Onboarding redesign waits until after MVP + devops.
