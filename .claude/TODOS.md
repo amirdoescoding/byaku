@@ -23,8 +23,8 @@ Gate on the `v0.1.0-rc1` prerelease (download it in a browser on a new macOS use
 
 - [x] Launch film `video/` (PR C `feat/launch-video`): 2D Remotion, cut to EZ4U, final render `video/out/byaku-launch.mp4`
 - [ ] Launch film: swap `ez4u.mp3` for the full-quality licensed download (current file is Epidemic's `fullmix_preview`)
-- [ ] Launch film: SFX via the Epidemic MCP (connect: `claude mcp add -s user --transport http epidemic-sound …`, restart):
-  click on the menu icon, slam impacts ×2, ゴゴゴ rumble, glass/paper crash on the smash, roll whoosh, wink ting
+- [x] Launch film: SFX synthesized locally (`video/scripts/sfx.py`, licence-clean; Epidemic MCP 401'd): click, slam ×2, rumble, wall-break crash, whoosh, wink ting
+- [ ] Launch film: Epidemic MCP token rejected (401); re-issue or re-add without the Authorization header so it uses OAuth (needed for the full-quality track)
 - [ ] Launch film: 9:16 cutdown for Reels/Shorts (optional)
 
 ## Next (pick one per PR)

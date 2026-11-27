@@ -1,6 +1,6 @@
 // byaku launch film: the mascot tells you about itself. Every value is a pure function of t (seconds).
 import React, { createContext, useContext } from 'react';
-import { AbsoluteFill, Audio, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, continueRender, delayRender, interpolate, Sequence, spring, staticFile, useCurrentFrame } from 'remotion';
 import { BLADE_L, BLADE_R, RING } from '../../site/src/components/Mascot';
 import { Scene } from '../../site/src/remotion/GuardScene';
 
@@ -427,6 +427,11 @@ function Aura({ t, on, x, y, r, color }: { t: number; on: number; x: number; y: 
 }
 
 const HITS = hitTimes(LINES);
+/** Synthesized SFX (video/scripts/sfx.py): [file, film seconds, volume]. */
+const SFX: [string, number, number][] = [
+  ['click', MB.click, 0.6], ...HITS.map((h): [string, number, number] => ['slam', h, 0.55]), ['rumble', B(5.6), 0.45],
+  ['crash', SMASH, 0.7], ['whoosh', ROLL_AWAY, 0.5], ['ting', B(24), 0.35],
+];
 
 export function Film({ theme = 'dark' }: { theme?: keyof typeof PALETTES }) {
   const C = PALETTES[theme];
@@ -477,6 +482,9 @@ export function Film({ theme = 'dark' }: { theme?: keyof typeof PALETTES }) {
     <PalCtx.Provider value={C}>
     <AbsoluteFill style={{ background: C.bg, ...VARS }}>
     <Audio src={staticFile('audio/ez4u.mp3')} startFrom={Math.round(TRACK_IN * FPS)} volume={(f) => 1 - ramp(f / FPS, DURATION - 0.25, DURATION)} />
+    {SFX.map(([f, at, v], i) => (
+      <Sequence key={i} from={Math.round(at * FPS)} layout="none"><Audio src={staticFile(`audio/sfx/${f}.wav`)} volume={v} /></Sequence>
+    ))}
     <AbsoluteFill style={{ translate: `${kick * 0.6}px ${kick}px` }}>
     {/* camera layer: the close-up zooms this, the type stays in screen space */}
     <AbsoluteFill style={{ transformOrigin: '0 0', transform: camera(t, m) }}>
