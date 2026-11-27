@@ -13,8 +13,13 @@ Gate on the `v0.1.0-rc1` prerelease (download it in a browser on a new macOS use
 - [ ] 8 Power: `scripts/power.sh` Guard + one face on battery, ≤ ~1.5 W; record it
 - [ ] 9 Open at login survives a reboot; Quit works
 - [x] 10 Fonts in `assets/fonts` are all SIL OFL 1.1 (ship `OFL.txt` with the site)
-- [ ] Merge #15, tag `v0.1.0`, delete the rc release and tag; `curl -sIL …/releases/latest/download/Byaku-arm64.zip` → 200
-- [ ] PR B `feat/site`: design round 2, mockups (`design/site/`), OK, build static `site/`, Vercel (root `site`, ignored build step), Web Analytics, Remotion Guard demo < 2 MB
+- [x] Merge #15, tag `v0.1.0`, delete the rc release and tag; `curl -sIL …/releases/latest/download/Byaku-arm64.zip` → 200
+- [x] PR B `feat/site`: shotgun → mockups → OK → Astro site → QA fixes → Vercel project (root `site`) + preview
+- [ ] Site: merge PR B → production build on byaku-eight.vercel.app; check it loads and Download saves the zip
+- [ ] Site: enable Web Analytics in the Vercel dashboard (byaku → Analytics → Enable); until then `/_vercel/insights/script.js` 404s
+- [ ] Site: check by hand on a real iPhone: tap-to-gaze is weak (the scroll-velocity term dominates), pill feel, demo legibility at 375
+- [ ] Site: battery FAQ says target only; add the measured number after launch test 8
+- [ ] Site: custom domain later (optional); README + og meta point at byaku-eight.vercel.app
 
 ## Next (pick one per PR)
 

@@ -1,0 +1,143 @@
+---
+import Base from '../layouts/Base.astro';
+import { Mascot } from '../components/Mascot';
+import Roamer, { DOWNLOAD } from '../components/Roamer';
+import GuardDemo from '../components/GuardDemo';
+import Faq from '../components/Faq';
+import { WORDMARK_D } from '../lib/wordmark';
+import { getStars } from '../lib/stars';
+
+const REPO = 'https://github.com/amirdoescoding/byaku';
+const stars = await getStars();
+const stats = [
+  ['0', 'frames saved', 'Each frame is checked once, then dropped. Nothing is written to disk, logged or sent.'],
+  ['0', 'network calls', 'The app never goes online. The models ship inside it.'],
+  ['1', 'click to delete your face', 'Your face template stays on your Mac. One click removes it.'],
+];
+const pipeline = [
+  ['Camera', 'Low resolution, 1 to 5 frames a second.'],
+  ['Face detection', "Apple Vision finds every face in the frame."],
+  ['Is it you?', 'A small model (SFace), on your Mac, compares each face with yours.'],
+  ['Looking at the screen?', 'Head yaw and pitch say whether a face is turned your way.'],
+  ['Debounce', 'A face must look for several frames before byaku reacts. No flicker.'],
+  ['Action', 'A banner, a dim, or an alarm and a lock.'],
+];
+---
+<Base title="byaku: Know who's looking." description="byaku is a Mac menu-bar app that watches your webcam for faces that aren't yours. It warns you, or locks the screen when you're away. Nothing leaves your Mac.">
+  <header class="absolute inset-x-0 top-0 z-10 flex h-16 items-center justify-between px-5 md:h-[88px] md:px-12">
+    <a href="/" aria-label="byaku"><svg class="block h-7 w-auto fill-ink md:h-[34px]" viewBox="5.10 -78.00 257.50 101.00" role="img" aria-label="byaku"><path d={WORDMARK_D}></path></svg></a>
+    <a href={REPO} class="py-2 text-[15px] text-mute no-underline hover:text-ink">GitHub</a>
+  </header>
+
+  <main>
+    <section id="hero" data-expr="idle" data-name="Hero" class="relative flex min-h-svh flex-col items-center justify-center px-6 pb-14 text-center">
+      <div id="slot" class="mb-8 size-[156px] md:mb-12 md:size-[240px]"><Mascot expr="idle" className="size-full" /></div>
+      <h1 class="text-[clamp(44px,8vw,104px)] leading-[1.02]">Know who's looking.</h1>
+      <p class="mx-auto mb-9 mt-6 max-w-[42ch] text-balance text-[17px] text-mute md:text-xl">byaku watches your webcam for faces that aren't yours. It warns you, or locks the screen when you're away. Nothing leaves your Mac.</p>
+      <a class="btn hero-btn" id="dl" href={DOWNLOAD}>Download for Mac</a>
+      <p class="mt-3.5 text-sm text-mute">Apple silicon · macOS 14+</p>
+      <a href="#demo" class="tag absolute bottom-7 flex min-h-11 items-center gap-2 no-underline">See it happen <svg class="size-3 fill-none stroke-mute" strokeWidth="1.5" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1v10M1.5 6.5L6 11l4.5-4.5" /></svg></a>
+    </section>
+
+    <section id="demo" tabindex="-1" class="s outline-none" data-expr="focus" data-name="Demo">
+      <div class="col wide">
+        <div class="text-center">
+          <p class="tag mx-auto">Demo</p><h2>See it happen.</h2>
+          <p class="mx-auto mb-12">Pick a mode. Someone looks. byaku answers.</p>
+        </div>
+        <GuardDemo client:idle />
+      </div>
+    </section>
+
+    <section id="modes" class="s" data-expr="raised" data-name="Modes">
+      <div class="col">
+        <p class="tag">Two modes</p>
+        <h2>At your desk, or away from it.</h2>
+        <div class="mt-10 grid gap-10 md:grid-cols-2">
+          <div class="border-t border-line pt-5"><h3 class="text-[28px]">Guard</h3><p class="mt-2 !text-ink">While you work. Someone looks, and byaku shows a small banner, tints the screen edges, or dims the screen.</p></div>
+          <div class="border-t border-line pt-5"><h3 class="text-[28px]">Away</h3><p class="mt-2 !text-ink">When you step out. Anyone looks, and byaku sounds an alarm and locks your Mac.</p></div>
+        </div>
+        <p class="mt-8">Choose which actions run, how strong the dim is, and how long a look must last.</p>
+      </div>
+    </section>
+
+    <section id="privacy" class="s" data-expr="calm" data-name="Privacy">
+      <div class="col wide">
+        <p class="tag">Privacy</p>
+        <h2 class="!max-w-[12ch]">Nothing leaves your Mac.</h2>
+        <div class="mt-12 grid gap-0 border-t border-line md:grid-cols-3 md:gap-12 md:pt-10">
+          {stats.map(([n, t, b]) => (
+            <div class="flex gap-5 border-t border-line py-6 first:border-t-0 md:block md:border-0 md:p-0">
+              <div class="font-display text-[64px] font-medium leading-none tracking-[-.03em] md:text-[120px]" aria-hidden="true">{n}</div>
+              <div><h3 class="font-sans text-lg md:mt-4"><span class="sr-only">{n} </span>{t}</h3><p class="mt-2 text-[15px]">{b}</p></div>
+            </div>
+          ))}
+        </div>
+        <p class="mt-8 !text-sm md:mt-12">This site counts visits, with no cookies. The app counts nothing and makes no network calls.</p>
+      </div>
+    </section>
+
+    <section id="how" class="s" data-expr="focus" data-name="How it works">
+      <div class="col">
+        <p class="tag">How it works</p>
+        <h2>A few frames a second.</h2>
+        <p>byaku keeps the camera at low resolution and checks each frame, in memory, in six steps.</p>
+        <ol class="mt-10 list-none p-0">
+          {pipeline.map(([t, b], i) => (
+            <li class="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-t border-line py-5 last:border-b md:grid-cols-[3rem_14rem_1fr]">
+              <span class="tag pt-1.5">{String(i + 1).padStart(2, '0')}</span>
+              <h3 class="font-sans text-lg">{t}</h3>
+              <p class="col-start-2 text-[15px] md:col-start-3">{b}</p>
+            </li>
+          ))}
+        </ol>
+        <p class="mt-8 !text-ink">Power: the design target is ≤ ~1.5 W extra while guarding on Apple silicon.</p>
+      </div>
+    </section>
+
+    <section id="install" class="s" data-expr="raised" data-name="Install">
+      <div class="col">
+        <p class="tag">Install</p>
+        <h2>Three steps.</h2>
+        <p class="mb-8">Apple silicon, macOS 14 or later.</p>
+        <ol class="list-none p-0">
+          <li class="grid grid-cols-[2.5rem_minmax(0,1fr)] border-t border-line py-5"><span class="tag pt-1.5">01</span><p class="!text-ink">Download <a href={DOWNLOAD}>Byaku-arm64.zip</a> and unzip it.</p></li>
+          <li class="grid grid-cols-[2.5rem_minmax(0,1fr)] border-t border-line py-5"><span class="tag pt-1.5">02</span><p class="!text-ink">Move <code>Byaku.app</code> to Applications and open it.</p></li>
+          <li class="grid grid-cols-[2.5rem_minmax(0,1fr)] border-y border-line py-5"><span class="tag pt-1.5">03</span>
+            <div><p class="!text-ink">byaku isn't notarized yet (no paid Apple developer account), so macOS blocks the first open. Go to System Settings → Privacy &amp; Security, scroll down and click <strong class="font-medium">Open Anyway</strong>.</p>
+            <p class="mt-3 text-[15px]">Or, in Terminal: <code class="block overflow-x-auto whitespace-nowrap rounded bg-surface px-2 py-1.5 text-[13px] text-ink md:mt-0">xattr -dr com.apple.quarantine /Applications/Byaku.app</code></p>
+            <p class="mt-3 text-[15px]">Each release has a new signature, so after an update macOS asks for camera access again.</p></div></li>
+        </ol>
+        <p class="mt-8 text-[15px]">Prefer to build it yourself? <a href={`${REPO}#install`}>Build from source</a>.</p>
+      </div>
+    </section>
+
+    <section id="faq" class="s" data-expr="look" data-name="FAQ">
+      <div class="col">
+        <p class="tag">FAQ</p>
+        <h2>Questions.</h2>
+        <div class="mt-7"><Faq client:visible /></div>
+      </div>
+    </section>
+
+    <section id="open-source" class="s" data-expr="happy" data-name="Open source">
+      <div class="col">
+        <p class="tag">Open source</p>
+        <h2>Make it better with us.</h2>
+        <p>byaku is free and built in the open. Report a bug, suggest an idea, or send a pull request. Every contribution gets read.</p>
+        <div class="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <a class="btn ghost" href={REPO}>Contribute on GitHub</a>
+          <a class="text-[15px] text-mute" href={`${REPO}/blob/main/CONTRIBUTING.md`}>How to contribute</a>
+          {stars !== null && stars > 0 && <span class="text-[15px] text-mute">★ {stars.toLocaleString('en-US')} on GitHub</span>}
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="mx-auto flex max-w-[960px] flex-wrap items-center justify-between gap-4 px-6 pb-32 pt-10 md:px-0">
+    <svg class="h-6 w-auto fill-ink" viewBox="5.10 -78.00 257.50 101.00" role="img" aria-label="byaku"><path d={WORDMARK_D}></path></svg>
+    <nav class="flex gap-6 text-sm text-mute" aria-label="Footer"><a href={REPO}>GitHub</a><a href={`${REPO}/blob/main/LICENSE`}>Licence</a><a href="/fonts/OFL.txt">Font licences</a></nav>
+  </footer>
+
+  <Roamer client:load />
+</Base>

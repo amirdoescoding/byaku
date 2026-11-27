@@ -68,3 +68,11 @@ ml/models/
 *.mlmodel
 graphify-out/
 __pycache__/
+
+# BYAKU: site
+site/node_modules
+site/dist
+site/.astro
+site/.screens
+.vercel
+.env*

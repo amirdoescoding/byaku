@@ -5,6 +5,8 @@
 byaku is an open-source macOS menu-bar app. It watches your webcam for faces that aren't yours and are looking
 at your screen. When it finds one, it reacts. Everything runs on your Mac, and no frame ever leaves it.
 
+**Website:** [byaku-eight.vercel.app](https://byaku-eight.vercel.app)
+
 > Status: **alpha**. Guard and Away work end to end. Releases are ad-hoc signed (not notarized yet). See [Roadmap](#roadmap).
 
 ## Modes
