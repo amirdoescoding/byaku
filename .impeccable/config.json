@@ -110,6 +110,15 @@
         ],
         "createdAt": "2026-11-26T08:59:12.763Z",
         "reason": "assistant: the tracked text is the one-line sheet caption label (.cap), mockup chrome inherited from design/menubar/src/mockups.py, not app UI"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/site/mockups.html"
+        ],
+        "createdAt": "2026-11-27T13:58:02.981Z",
+        "reason": "Claude triage: all hits are .f, the mockup sheet's viewport frame; page sections inside run full-bleed by design"
       }
     ]
   }

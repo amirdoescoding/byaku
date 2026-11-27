@@ -60,3 +60,15 @@ byaku's UI principles. The full token system is written by `impeccable-documente
       mask collapses into the mascot's ring.
     - Exception to §10's 300 ms limit: the sweep (0.9 s), the camera hold and the collapse show progress, like the
       countdown did. Reduce Motion: cross-fades, and the mask still tracks the head.
+14. **Site** (`site/`, Astro static + React islands; mockups + motion prototype: `design/site/`).
+    - Brand tokens from `design/brand/palette.md` as CSS variables (`site/src/styles/global.css`); follows the system theme.
+      Rondel for headlines and the wordmark, Beacon (variable) for body. One violet use per screen: the roaming mascot.
+    - Hero "Pale Watch": a centred mascot that watches the pointer, then "Know who's looking." and Download.
+    - Download docks into a bottom-centre pill (FLIP spring) once the hero button scrolls out. A mono mini mascot in
+      the pill emotes: hover = happy, press = joy.
+    - The violet mascot roams the side gutters (only when a gutter is ≥ 130 px wide), never rests on text, changes
+      expression per section (idle, raised, focus, calm, look, frown, happy, joy), and hops away when clicked.
+      rAF stops when the tab is hidden. Reduce Motion: it stays still.
+    - The Guard demo is a live `@remotion/player` (loads when scrolled into view): a flat 2D Mac with the real mode
+      ladder (Whisper / Iris / Shade / Awaken) and a Guard ↔ Away switch. No sound.
+    - Components are hand-restyled Radix (the shadcn pattern): no default shadows, focus ring = accent 2 px.
