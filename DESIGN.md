@@ -46,10 +46,11 @@ byaku's UI principles. The full token system is written by `impeccable-documente
       (the strips measured 2–4 mW vs a 1–5 mW baseline; the old blurred shadow cost +13 mW).
     - Nothing pulses while an alert is held. Reduce Motion: fade only.
 12. **Onboarding as shipped** (spec: `docs/designs/onboarding.md`, mockups + motion prototype: `design/onboarding/`).
-    - First launch and "Welcome tour…": welcome → face (skipped if saved) → tour on the real menu → founder video.
+    - First launch and "Welcome tour…": welcome → face (skipped if saved) → guided tour on the real menu → founder video.
     - The mark is the mascot: the ring is still, the blades are eyebrows (raise, frown, focus, look, blink, stressed).
       Violet stays the mark's colour; at the video's corner the mark turns ink.
-    - The tour never fakes the menu: the real NSMenu opens and a click-through coach bubble sits beside it.
+    - The tour never fakes the menu: the real NSMenu opens with a coach card as its first item. Next lights one row at a
+      time (the rest greyed); only Finish or Skip tour lead to the video, and a stray close reopens the menu.
     - Springs (CASpringAnimation, retargeting) carry every move. A flight is travel, so it may settle a little past 300 ms.
     - Sounds are synthesised (whoosh, brow flick). Reduce Motion: snaps and fades, no blink, no flight.
 13. **Face scan as shipped** (spec: `docs/designs/face-scan.md`, prototype + sheets: `design/scan/`).

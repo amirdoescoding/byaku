@@ -114,58 +114,57 @@ ROWS = [("Guard is off", "", 0, 0, "", "status"), ("", "", 0, 0, "", "sep"),
         ("", "", 0, 0, "", "sep"), ("Open at login", "", 1, 0, "", "row"), ("Welcome tour…", "", 0, 0, "", "extra"), ("Quit byaku", "⌘Q", 0, 0, "", "row")]
 H = {"row": 22, "status": 22, "extra": 22, "sep": 11, "vol": 59}
 
-def tour_menu(t, visited, hover):
-    """Returns (menu html, y centre of the hovered row inside the menu box)."""
-    k = TH[t]; y = 6; out = []; hy = None  # 1 px border + 5 px padding
+STEPS = ["Guard", "Away", "Alarm sound", "Message…", "Mode", "Set up face again…"]  # the core features, in menu order
+
+def coach_card(k, label, last):
+    key, line = COPY[label]
+    n = STEPS.index(label) + 1
+    nxt = btn(k, "Finish" if last else "Next", "primary").replace('class="btn"', 'class="btn s"')
+    skip = btn(k, "Skip tour", "secondary").replace('class="btn"', 'class="btn s"')
+    return (f'<div class="cc"><div class="bh"><span class="bn" style="color:{k["ink"]}">{label.rstrip("…")}</span>'
+            f'<span style="color:{k["mute"]}">{key}</span></div>'
+            f'<div class="bd2" style="color:{k["mute"]}">{line}</div>'
+            f'<div class="cfoot"><span style="color:{k["mute"]};font-variant-numeric:tabular-nums">{n} of {len(STEPS)}</span>'
+            f'<span class="cbtn">{skip}{nxt}</span></div></div><div class="sepr" style="background:{k["sep"]}"></div>')
+
+def tour_menu(t, lit, last=False):
+    """The real menu during the guided tour: the coach card is the first item; only the lit row is enabled."""
+    k = TH[t]; out = [coach_card(k, lit, last)]
     for label, key, on, sub, small, kind in ROWS:
-        h = 34 if small else H[kind]
         if kind == "sep":
             out.append(f'<div class="sepr" style="background:{k["sep"]}"></div>')
         elif kind == "vol":
-            out.append(f'<div style="padding:6px 13px 8px 23px;height:59px;position:relative">{'<i class="dot" style="background:%s;top:20px"></i>' % k["mute"] if "Alarm volume" not in visited else ""}<div style="font:600 13px/13px -apple-system,system-ui;color:{k["ink"]};margin-bottom:8px">Alarm volume</div>'
+            out.append(f'<div style="padding:6px 13px 8px 23px;height:59px;opacity:.35"><div style="font:600 13px/13px -apple-system,system-ui;color:{k["ink"]};margin-bottom:8px">Alarm volume</div>'
                        f'{aw.slider(t, 1.0, 226)}</div>')
         else:
-            hl = label == hover
-            if hl: hy = y + h / 2
-            dot = '<i class="dot" style="background:%s"></i>' % (k["mute"]) if kind == "row" and label not in visited else ""
-            en = kind != "status"
-            col = "#fff" if hl else (k["ink"] if en else k["dis"])
-            lb = f'{label}<small style="color:{"rgba(255,255,255,.8)" if hl else k["mute"]}">{small}</small>' if small else label
-            out.append(f'<div class="mi{" hl" if hl else ""}{" two" if small else ""}" style="color:{col};position:relative">{dot}'
+            hl = label == lit
+            col = k["ink"] if hl else k["dis"]
+            w = "font-weight:600;" if hl else ""
+            lb = f'{label}<small style="color:{k["mute"] if hl else k["dis"]}">{small}</small>' if small else label
+            out.append(f'<div class="mi{" two" if small else ""}" style="color:{col};{w}">'
                        f'<span class="ck">{"✓" if on else ""}</span><span class="lb">{lb}</span>'
-                       f'<span class="kc" style="color:{"#fff" if hl else k["mute"]}">{"›" if sub else key}</span></div>')
-        y += h + (0 if kind != "sep" else 0)
-    return f'<div class="menu" style="width:282px;margin:0;background:{k["menu"]};border-color:{k["sep"]}">{"".join(out)}</div>', hy
+                       f'<span class="kc" style="color:{k["mute"] if hl else k["dis"]};font-weight:400">{"›" if sub else key}</span></div>')
+    return f'<div class="menu" style="width:300px;margin:0;background:{k["menu"]};border-color:{k["sep"]}">{"".join(out)}</div>'
 
-def tour_scene(t, visited, hover):
+def tour_scene(t, lit, last=False):
     k = TH[t]
-    W, Hh, MW = 1000, 560, 282
-    mh, hy = tour_menu(t, visited, hover)
+    W, Hh, MW = 1000, 640, 300
     mx, my = W - MW - 12, 28
-    n = len(visited)
-    bw, by = 300, (my + hy - 40) if hy else my + 6
-    bx = mx - 14 - bw
-    if hover:
-        sh, name = COPY[hover]
-        head = (f'<div class="bh"><span class="bn" style="color:{k["ink"]}">{hover.rstrip("…")}</span>'
-                f'<span style="color:{k["mute"]}">{sh}</span></div>')
-        line = f'<div class="bd2" style="color:{k["ink"]}">{name}</div>'
-    else:
-        head = ""; line = f'<div class="bd2" style="color:{k["ink"]};font-size:13px">Hover any item.</div>'
-    bubble = (f'<div class="coach" style="left:{bx}px;top:{by}px;width:{bw}px;background:{k["surface"]};border-color:{k["line"]}">'
-              f'<i class="arrow{"" if hover else " up"}" style="background:{k["surface"]};border-color:{k["line"]}{";top:40px" if hover else ""}"></i>'
-              f'<div class="crow"><span class="cm">{mascot(k["accent"], "look" if not hover else "focus", 32)}</span>'
-              f'<div class="ctx">{head}{line}</div></div>'
-              f'<div class="cfoot"><span style="color:{k["mute"]}">Click anywhere to finish</span><span style="color:{k["mute"]};font-variant-numeric:tabular-nums">{n} of 12</span></div></div>')
+    dock = f'<div style="position:absolute;left:{mx - 14 - 40}px;top:{my + 14}px">{mascot(k["accent"], "look", 40)}</div>'
     return (f'<div class="desk" style="width:{W}px;height:{Hh}px;background:{k["bg"]};border-color:{k["line"]}">{deskbar(t, W)}'
-            f'<div style="position:absolute;left:{mx}px;top:{my}px">{mh}</div>{bubble}</div>')
+            f'{dock}<div style="position:absolute;left:{mx}px;top:{my}px">{tour_menu(t, lit, last)}</div></div>')
 
 def tour(t):
     k = TH[t]
-    a = fig(k, tour_scene(t, set(), None), "Tour, before hover", "bubble sits level with the status line; the notch points up-right at the status item. Every row carries a dot: not seen yet. Counter starts at 0 of 12")
-    b = fig(k, tour_scene(t, {"Guard", "Alarm volume", "Away"}, "Away"), "Tour, hovering Away",
-            "the arrow follows the row. A row loses its dot once hovered. Welcome tour… is not part of the 12. Tour ends on any click outside the menu, Esc, or when the menu closes. The bubble ignores the mouse")
-    return panel(t, "4 · tour in progress", a + b, "one")
+    a = fig(k, tour_scene(t, "Guard"), "Step 1 · Guard",
+            "the coach card is the menu's first item (a custom view, like the sound rows), so Next keeps the menu open and stays under the pointer. "
+            "Only the lit row is enabled (semibold); every other row is disabled, the slider at 35%. Nothing in the menu acts during the tour")
+    b = fig(k, tour_scene(t, "Mode"), "Step 5 · Mode",
+            "Next flips the lit row live. A click outside closes the menu; it reopens on the same step, so the video never starts by accident. "
+            "No Next for 6 s: the docked mascot gets stressed")
+    c = fig(k, tour_scene(t, "Set up face again…", last=True), "Last step · Finish",
+            "Finish is the only way to the video: the menu closes and the mascot flies into the lockup. Skip tour goes to the video without the rest")
+    return panel(t, "4 · guided tour", a + b + c, "one")
 
 # ---- 5 founder video ------------------------------------------------------------------------------------------------
 def lockup(t, width=300, reveal=None):
@@ -220,6 +219,7 @@ CSS = mb.CSS + """
 .crow{display:flex;gap:12px}.cm{flex:none;margin-top:1px}.ctx{min-height:52px}
 .bh{display:flex;gap:8px;align-items:baseline;font:12px/16px -apple-system,system-ui;margin-bottom:4px}.bn{font:600 13px/20px -apple-system,system-ui}
 .cfoot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font:12px/16px -apple-system,system-ui}
+.cc{padding:8px 9px 10px 22px}.cc .bd2{margin-top:2px;max-width:250px}.cbtn{display:flex;gap:6px}
 .btn.s{height:28px;min-width:0}
 .vcard{width:672px;padding:16px;border:1px solid;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .vid{position:relative;padding:8px;width:640px;height:360px;border-radius:8px;overflow:hidden;border:1px solid;display:flex;align-items:center;justify-content:center}

@@ -2,7 +2,7 @@ import AppKit
 import AVKit
 
 // First-run onboarding (docs/designs/onboarding.md; motion: design/onboarding/motion.html):
-// welcome → face → menu tour (on the real menu) → founder video. Timings and springs live in Tokens.Onboarding.
+// welcome → face → guided menu tour (on the real menu, one row at a time) → founder video. Timings and springs live in Tokens.Onboarding.
 
 typealias Onb = Tokens.Onboarding
 
@@ -321,7 +321,8 @@ func svgPath(_ d: String, offset o: CGPoint = .zero) -> CGPath {
 // MARK: - OnboardingFlow
 
 /// One window for welcome, face and the founder video. The tour leaves it: the mascot flies to the menu bar, the real
-/// menu opens, and a coach bubble beside it explains whatever row is hovered (NSMenuDelegate, forwarded by AppController).
+/// menu opens with a coach card as its first item, and Next lights one feature row at a time (AppController calls
+/// dress(_:) from menuNeedsUpdate). Only Finish or Skip tour lead on to the video; any other close reopens the menu.
 final class OnboardingFlow: NSObject {
     var onScan: () -> Void = {}, onStopScan: () -> Void = {}, onOpenSettings: () -> Void = {}
     var onOpenMenu: () -> Void = {}, onDone: () -> Void = {}
@@ -520,19 +521,79 @@ final class OnboardingFlow: NSObject {
         o.begin(from: window.convertToScreen(mascot.convert(mascot.bounds, to: nil)), pose: MascotView.look(1, 1))
         mascot.isHidden = true
         NSAnimationContext.runAnimationGroup { c in c.duration = Onb.windowFade; window.animator().alphaValue = 0 }
-        touring = true
-        after(Onb.menuAfter) { [weak self] in
-            self?.onOpenMenu()
-            // The status item can be hidden (notch, menu-bar managers): if no menu opened, don't leave an invisible tour.
-            self?.after(Onb.menuCheck) { if self?.touring == true, self?.overlay?.menuSeen != true { self?.finish() } }
-        }
+        touring = true; step = 0; tourDone = false
+        after(Onb.menuAfter) { [weak self] in self?.openMenu() }
+    }
+
+    /// The status item can be hidden (notch, menu-bar managers): if no menu opened, don't leave an invisible tour.
+    private func openMenu() {
+        onOpenMenu()
+        after(Onb.menuCheck) { [weak self] in if self?.touring == true, self?.overlay?.menuSeen != true { self?.finish() } }
     }
 
     func menuOpened(_ menu: NSMenu) { overlay?.opened(menu) }
-    func highlight(_ item: NSMenuItem?) { overlay?.highlight(item) }
+
+    // MARK: tour steps
+
+    private var step = 0, tourDone = false
+    private weak var tourMenu: NSMenu?
+    private let card = CoachRow()
+
+    /// Called from menuNeedsUpdate while touring: the coach card goes first, nothing in the menu acts, and only the current
+    /// step's row is enabled. The steps are the coached rows this menu actually has (Message… needs the app bundle).
+    func dress(_ menu: NSMenu) {
+        tourMenu = menu
+        for i in menu.items {
+            i.target = nil; i.action = nil
+            (i.view as? VolumeSlider)?.inert = true
+            i.submenu?.items.forEach { $0.isEnabled = false; $0.action = nil; ($0.view as? SoundRow)?.onPick = { _ in } }
+        }
+        card.onNext = { [weak self] in self?.next() }
+        card.onSkip = { [weak self] in self?.endTour() }
+        let c = NSMenuItem(); c.view = card
+        menu.insertItem(c, at: 0); menu.insertItem(.separator(), at: 1)
+        light()
+    }
+
+    private var steps: [NSMenuItem] { tourMenu?.items.filter { CoachOverlay.coach[$0.title] != nil } ?? [] }
+
+    /// Live, while the menu is open: the current row enabled and semibold, every other row the native disabled grey.
+    private func light() {
+        guard let menu = tourMenu else { return }
+        let s = steps
+        guard !s.isEmpty else { return }
+        step = min(step, s.count - 1)
+        let size = NSFont.menuFont(ofSize: 0).pointSize
+        for i in menu.items where i.view == nil && i.attributedTitle != nil {  // un-light (a nil attributedTitle blanks the row)
+            i.attributedTitle = NSAttributedString(string: i.title, attributes: [.font: NSFont.menuFont(ofSize: size)])
+        }
+        for i in menu.items where i.view == nil { i.isEnabled = false }
+        let lit = s[step], text = CoachOverlay.coach[lit.title] ?? ""
+        lit.isEnabled = true
+        lit.attributedTitle = NSAttributedString(string: lit.title, attributes: [.font: NSFont.systemFont(ofSize: size, weight: .semibold)])
+        let key = lit.keyEquivalent.isEmpty ? "" : "⌘\(lit.keyEquivalent.uppercased())"
+        card.show(lit.title.replacingOccurrences(of: "…", with: ""), shortcut: key, text, step: step + 1, of: s.count)
+        NSAccessibility.post(element: card, notification: .announcementRequested, userInfo: [
+            .announcement: "\(lit.title), \(step + 1) of \(s.count). \(text)", .priority: NSAccessibilityPriorityLevel.high.rawValue])
+    }
+
+    private func next() {
+        guard step < steps.count - 1 else { return endTour() }
+        step += 1
+        light()
+        overlay?.nudged()
+    }
+
+    /// Finish or Skip tour: close the menu; menuClosed() then takes the flight into the video.
+    private func endTour() { tourDone = true; tourMenu?.cancelTracking() }
 
     func menuClosed() {
         guard touring, let o = overlay else { return }
+        guard tourDone else {  // a click outside or Esc: back on the same step, never on to the video
+            o.closed()
+            after(Onb.reopen) { [weak self] in self?.openMenu() }
+            return
+        }
         touring = false
         // The window is invisible here: set the video step up behind it, then the mascot flies from the menu bar straight
         // into the lockup while the window fades in. No card in between, no size jump.
@@ -727,31 +788,21 @@ private final class OnboardingWindow: NSWindow {
 
 // MARK: - CoachOverlay
 
-/// A click-through, full-screen layer above the open menu: the flying mascot and the coach bubble beside the menu.
+/// A click-through, full-screen layer above the open menu: the flying mascot, docked beside the coach card.
 private final class CoachOverlay: NSPanel {
-    /// Row title → (shown name, one line). Copy from design/onboarding/mockups.html.
-    static let coach: [String: (String, String)] = [
-        "Guard": ("Guard", "Watches the camera. If someone else looks, you get a heads-up."),
-        "Away": ("Away", "Stepping away? If anyone looks, the alarm sounds and the Mac locks."),
-        "Alarm sound": ("Alarm sound", "Pick the sound the alarm plays. Choosing one plays a short preview."),
-        "Message…": ("Message…", "Record a short line to speak over the alarm. Up to 8 seconds."),
-        "Mode": ("Mode", "What Guard does besides the banner: nothing, violet edges, or a dim."),
-        "Banner": ("Banner", "A small notice under the menu bar when someone else looks."),
-        "Sound": ("Sound", "Adds a short sound to the Guard alert. Off by default."),
-        "Set up face…": ("Set up face…", "Saves a face print of you, so byaku knows who not to flag."),
-        "Set up face again…": ("Set up face again…", "Saves a new face print of you, so byaku knows who not to flag."),
-        "Delete face data": ("Delete face data", "Removes your saved face print from this Mac. One click, no undo."),
-        "Open at login": ("Open at login", "Starts byaku in the menu bar when you log in."),
-        "Quit byaku": ("Quit byaku", "Stops watching and closes byaku."),
+    /// The tour's steps: row title → one line (≤ 70 chars). Copy from design/onboarding/mockups.html. Order is the menu's.
+    static let coach: [String: String] = [
+        "Guard": "Watches the camera. If someone else looks, you get a heads-up.",
+        "Away": "Stepping away? If anyone looks, the alarm sounds and the Mac locks.",
+        "Alarm sound": "Pick the sound the alarm plays. Choosing one plays a short preview.",
+        "Message…": "Record a short line to speak over the alarm. Up to 8 seconds.",
+        "Mode": "What Guard does besides the banner: nothing, violet edges, or a dim.",
+        "Set up face…": "Saves a face print of you, so byaku knows who not to flag.",
+        "Set up face again…": "Saves a new face print of you, so byaku knows who not to flag.",
     ]
 
     private let flyer = MascotView(side: 112)
-    private let bubble = SurfaceView(frame: NSRect(x: 0, y: 0, width: 288, height: 76))
-    private let arrow = CAShapeLayer(), arrowEdge = CAShapeLayer()
-    private let name = NSTextField(labelWithString: ""), line = NSTextField(wrappingLabelWithString: ""), count = NSTextField(labelWithString: "")
     private let status: NSRect
-    private var total = 0, seen: Set<String> = []
-    private var base = NSRect.zero  // the bubble's first frame (overlay coordinates); it moves by layer translation from here
     private var impatience: Timer?, frowning = false
     private var gone = false  // flown back or ordered out: pending arrival beats and the stress timer stay quiet
     private(set) var menuSeen = false
@@ -767,16 +818,6 @@ private final class CoachOverlay: NSPanel {
         let v = NSView(frame: NSRect(origin: .zero, size: screen.frame.size))
         v.wantsLayer = true
         contentView = v
-        name.font = .systemFont(ofSize: 13, weight: .semibold); name.textColor = Tokens.ink
-        line.font = .systemFont(ofSize: 12); line.textColor = Tokens.mute; line.maximumNumberOfLines = 2
-        count.font = .systemFont(ofSize: 11); count.textColor = Tokens.mute
-        name.frame = NSRect(x: 64, y: 50, width: 212, height: 18)
-        line.frame = NSRect(x: 64, y: 20, width: 212, height: 30)
-        count.frame = NSRect(x: 64, y: 6, width: 212, height: 14)
-        [name, line, count].forEach(bubble.addSubview)
-        bubble.layer!.addSublayer(arrow); bubble.layer!.addSublayer(arrowEdge)
-        bubble.alphaValue = 0
-        v.addSubview(bubble)
         flyer.isHidden = true
         v.addSubview(flyer)
         alphaValue = 0
@@ -793,29 +834,14 @@ private final class CoachOverlay: NSPanel {
 
     private func local(_ r: NSRect) -> NSRect { r.offsetBy(dx: -frame.minX, dy: -frame.minY) }
 
-    /// The bubble's first spot: right edge a gap left of where the menu will open, top under the status item.
-    private func placeBubble(menuLeft: CGFloat) {
-        let s = local(status)
-        base = NSRect(x: menuLeft - frame.minX - Onb.bubbleGap - bubble.frame.width, y: s.minY - 8 - bubble.frame.height,
-                      width: bubble.frame.width, height: bubble.frame.height)
-        bubble.frame = base
-        drawArrow()
+    /// The 40 pt mascot's spot (overlay coordinates): a gap left of the menu, level with the coach card at its top.
+    private func dock(menuLeft: CGFloat, menuTop: CGFloat) -> CGPoint {
+        CGPoint(x: menuLeft - Onb.dockGap - 40 - frame.minX, y: menuTop - 14 - 40 - frame.minY)
     }
-
-    private func drawArrow() {
-        let w = bubble.frame.width, y = bubble.frame.height / 2, p = CGMutablePath(), e = CGMutablePath()
-        p.move(to: CGPoint(x: w - 1, y: y + 7)); p.addLine(to: CGPoint(x: w + 7, y: y)); p.addLine(to: CGPoint(x: w - 1, y: y - 7)); p.closeSubpath()
-        e.move(to: CGPoint(x: w, y: y + 7)); e.addLine(to: CGPoint(x: w + 7, y: y)); e.addLine(to: CGPoint(x: w, y: y - 7))
-        arrow.path = p; arrow.fillColor = cg(Tokens.surface, in: bubble)
-        arrowEdge.path = e; arrowEdge.fillColor = nil; arrowEdge.lineWidth = 1; arrowEdge.strokeColor = cg(Tokens.line, in: bubble)
-    }
-
-    private var dock: CGPoint { CGPoint(x: base.minX + 12, y: base.minY + (base.height - 40) / 2) }
 
     private func flyIn() {
-        placeBubble(menuLeft: min(status.minX, frame.maxX - 300))  // a guess until the menu window is on screen
         Sfx.play(.whooshIn)
-        fly(flyer, to: dock, side: 40)
+        fly(flyer, to: dock(menuLeft: min(status.minX, frame.maxX - 300), menuTop: status.minY), side: 40)  // a guess until the menu is on screen
         flyer.set(MascotView.rest)
         // On arrival the brows lift (with their flick), then it turns to the menu. Common modes: the menu is open by then.
         let t = Timer(timeInterval: Onb.menuAfter, repeats: false) { [weak self] _ in
@@ -823,7 +849,7 @@ private final class CoachOverlay: NSPanel {
             self.flyer.set(MascotView.raise, Onb.raise); Sfx.play(.browUp)
             let back = Timer(timeInterval: Onb.smileHold, repeats: false) { [weak self] _ in
                 guard let self, !self.gone else { return }
-                self.flyer.set(MascotView.look(1, 0), Onb.look); self.flyer.idle(true); self.waitForHover()
+                self.flyer.set(MascotView.look(1, 0), Onb.look); self.flyer.idle(true); self.waitForNext()
             }
             RunLoop.main.add(back, forMode: .common)
         }
@@ -832,56 +858,27 @@ private final class CoachOverlay: NSPanel {
 
     func opened(_ menu: NSMenu) {
         menuSeen = true
-        total = menu.items.filter { Self.coach[$0.title] != nil }.count
-        seen = []
-        say(nil)
-        NSAnimationContext.runAnimationGroup { c in c.duration = Tokens.Motion.enter; bubble.animator().alphaValue = 1 }
-        // The menu's window appears during this turn; find it a moment later and line the bubble up with its left edge.
-        let t = Timer(timeInterval: Onb.locate, repeats: false) { [weak self] _ in self?.follow(y: nil) }
+        // The menu's window appears during this turn; find it a moment later and dock beside its top-left.
+        let t = Timer(timeInterval: Onb.locate, repeats: false) { [weak self] _ in
+            guard let self, !self.gone, let m = NSApp.windows.first(where: {
+                $0.isVisible && $0 !== self && $0.level.rawValue >= NSWindow.Level.popUpMenu.rawValue })?.frame else { return }
+            fly(self.flyer, to: self.dock(menuLeft: m.minX, menuTop: m.maxY), side: 40, x: Onb.follow, y: Onb.follow)
+        }
         RunLoop.main.add(t, forMode: .common)
     }
 
-    func highlight(_ item: NSMenuItem?) {
-        guard let item, Self.coach[item.title] != nil else { return }
-        seen.insert(item.title)
-        say(item)
-        follow(y: NSEvent.mouseLocation.y)  // the highlighted row is under the pointer (keyboard: the bubble stays)
+    /// The menu closed on a stray click; it's about to reopen.
+    func closed() { menuSeen = false }
+
+    /// Next was pressed: a stressed mascot cheers up, and the wait starts over.
+    func nudged() {
         if frowning { frowning = false; flyer.calm(); flyer.set(MascotView.look(1, 0), Onb.look); Sfx.play(.browUp) }
         flyer.keepBlinking()  // also starts it if the arrival beat didn't run
-        waitForHover()
+        waitForNext()
     }
 
-    private func say(_ item: NSMenuItem?) {
-        let tail = "\(seen.count) of \(total) · Click anywhere to finish"
-        guard let item, let (n, l) = Self.coach[item.title] else {
-            name.stringValue = "Hover any item."; line.stringValue = ""; count.stringValue = tail
-            return
-        }
-        let key = item.keyEquivalent.isEmpty ? "" : "   ⌘\(item.keyEquivalent.uppercased())"
-        name.stringValue = n + key; line.stringValue = l; count.stringValue = tail
-        NSAccessibility.post(element: self, notification: .announcementRequested,
-                             userInfo: [.announcement: "\(n). \(l)", .priority: NSAccessibilityPriorityLevel.medium.rawValue])
-    }
-
-    /// Move the bubble (and the docked mascot) beside the menu, centred on screen height `y` when given.
-    private func follow(y: CGFloat?) {
-        let menu = NSApp.windows.first { $0.isVisible && $0 !== self && $0.level.rawValue >= NSWindow.Level.popUpMenu.rawValue }?.frame
-        let right = (menu?.minX ?? base.maxX + frame.minX + Onb.bubbleGap) - Onb.bubbleGap - frame.minX
-        var dy = bubble.layer.flatMap { $0.value(forKeyPath: "transform.translation.y") as? CGFloat } ?? 0
-        if let y {
-            let top = local(status).minY - 8, centre = min(y - frame.minY, top - base.height / 2)
-            dy = centre - base.height / 2 - base.minY
-        }
-        let dx = right - base.maxX
-        if let l = bubble.layer {
-            springTo(l, "transform.translation.x", dx, Onb.follow)
-            springTo(l, "transform.translation.y", dy, Onb.follow)
-        }
-        fly(flyer, to: CGPoint(x: dock.x + dx, y: dock.y + dy), side: 40, x: Onb.follow, y: Onb.follow)
-    }
-
-    /// No hover for a while: the mascot gets stressed. The next hover cheers it up; idle again, it stresses again.
-    private func waitForHover() {
+    /// No Next for a while: the mascot gets stressed. The next press cheers it up; idle again, it stresses again.
+    private func waitForNext() {
         impatience?.invalidate()
         guard !gone else { return }
         let t = Timer(timeInterval: Onb.impatient, repeats: false) { [weak self] _ in
@@ -896,7 +893,6 @@ private final class CoachOverlay: NSPanel {
 
     func flyBack(to r: NSRect) {
         gone = true; impatience?.invalidate(); flyer.calm(); flyer.idle(false)
-        NSAnimationContext.runAnimationGroup { c in c.duration = Tokens.Motion.exit; bubble.animator().alphaValue = 0 }
         flyer.set(MascotView.rest)
         fly(flyer, to: local(r).origin, side: r.width)
         Sfx.play(.whooshOut)

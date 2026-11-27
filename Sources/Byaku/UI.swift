@@ -595,6 +595,8 @@ final class SoundRow: NSView {
 /// `onCommit` fires on mouse-up (and per VoiceOver step) with the final value.
 final class VolumeSlider: NSView {
     var onCommit: (Float) -> Void = { _ in }
+    /// The onboarding tour dims the row and takes it out of play: clicks fall through to the (disabled) item.
+    var inert = false { didSet { alphaValue = inert ? Tokens.Onboarding.dimmed : 1 } }
     private(set) var value: Float
     private let pad = NSEdgeInsets(top: 6, left: 23, bottom: 8, right: 13), knob: CGFloat = 24
     private let title = NSTextField(labelWithString: "Alarm volume")
@@ -640,6 +642,7 @@ final class VolumeSlider: NSView {
         needsDisplay = true
     }
 
+    override func hitTest(_ p: NSPoint) -> NSView? { inert ? nil : super.hitTest(p) }
     override func mouseDown(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x) }
     override func mouseDragged(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x) }
     override func mouseUp(with e: NSEvent) { set(fromX: convert(e.locationInWindow, from: nil).x); onCommit(value) }
@@ -650,5 +653,50 @@ final class VolumeSlider: NSView {
         value = min(max(value + d, Tokens.Away.minVolume), 1); needsDisplay = true
         setAccessibilityValue("\(Int((value * 100).rounded())) percent"); onCommit(value)
         return true
+    }
+}
+
+// MARK: - CoachRow
+
+/// The onboarding tour's card: the status menu's first item while touring (docs/designs/onboarding.md §3). It's a custom
+/// view, like SoundRow, so Next and Skip tour keep the menu open (a plain item always closes it).
+final class CoachRow: NSView {
+    var onNext: () -> Void = {}, onSkip: () -> Void = {}
+    private let name = NSTextField(labelWithString: ""), key = NSTextField(labelWithString: "")
+    private let line = NSTextField(wrappingLabelWithString: ""), count = NSTextField(labelWithString: "")
+    private var buttons: [PanelButton] = []
+    private static let left: CGFloat = 22, right: CGFloat = 14  // text lines up with the menu's row titles
+
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: 300, height: 112))
+        autoresizingMask = .width
+        name.font = .systemFont(ofSize: 13, weight: .semibold); name.textColor = Tokens.ink
+        key.font = .systemFont(ofSize: 12); key.textColor = Tokens.mute
+        line.font = .systemFont(ofSize: 12); line.textColor = Tokens.mute; line.maximumNumberOfLines = 2
+        count.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular); count.textColor = Tokens.mute
+        [name, key, line, count].forEach { addSubview($0); $0.setAccessibilityElement(false) }
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    /// One step: the row's name and shortcut, its line, "n of total", and [Skip tour] [Next] (Finish on the last).
+    func show(_ title: String, shortcut: String, _ text: String, step: Int, of total: Int) {
+        let w = bounds.width, h = bounds.height
+        name.stringValue = title; name.sizeToFit()
+        name.setFrameOrigin(NSPoint(x: Self.left, y: h - 8 - name.frame.height))
+        key.stringValue = shortcut; key.sizeToFit()
+        key.setFrameOrigin(NSPoint(x: name.frame.maxX + 6, y: name.frame.minY + 1))
+        line.stringValue = text
+        line.frame = NSRect(x: Self.left, y: name.frame.minY - 4 - 32, width: w - Self.left - Self.right, height: 32)
+        count.stringValue = "\(step) of \(total)"; count.sizeToFit()
+        buttons.forEach { $0.removeFromSuperview() }
+        buttons = [PanelButton("Skip tour", role: .secondary) { [weak self] in self?.onSkip() },
+                   PanelButton(step == total ? "Finish" : "Next", role: .primary) { [weak self] in self?.onNext() }]
+        var x = w - Self.right
+        for b in buttons.reversed() {
+            b.setFrameSize(NSSize(width: b.frame.width, height: 28))
+            x -= b.frame.width; b.setFrameOrigin(NSPoint(x: x, y: 10)); x -= 6
+            addSubview(b)
+        }
+        count.setFrameOrigin(NSPoint(x: Self.left, y: 10 + (28 - count.frame.height) / 2))
     }
 }
