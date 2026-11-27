@@ -18,6 +18,14 @@ Gate on the `v0.1.0-rc1` prerelease (download it in a browser on a new macOS use
 
 ## Next (pick one per PR)
 
+- [ ] **Onboarding tour is guided, not click-anywhere** (rc1 QA, 2026-11-27): a stray click starts the founder video and the
+  tour falls apart. Keep everything else the same. Light one menu row at a time, dim the rest; **Next** moves on; the last step
+  is **Finish**, and only Finish plays the video.
+- [ ] **Away message: hold to record** (rc1 QA): the fixed 8 s take confused a tester, who had to redo it. Press and hold
+  Record, a live waveform plays while held, and releasing saves. Mockups first.
+- [ ] Updates: no auto-update yet (users re-download). Decide with notarization: manual + GitHub release watch, or opt-in
+  Sparkle (it would be the app's only network call, so it's against invariant 2 unless off by default)
+
 - [ ] Away sound picker: Return doesn't pick a highlighted sound (custom menu-row views); click or VoiceOver press only
 - [ ] Message panel: picking a sound while the panel plays the message stops it, but the panel's countdown sticks at 1 until Stop
 
