@@ -1,10 +1,10 @@
 Fonts shipped on this site: Rondel (rondel.woff2) and Beacon (beacon.woff2).
-Both are licensed under the SIL Open Font License, Version 1.1. The Beacon license text follows.
-Rondel's copyright notice is not included in the source files; see the project's font credits.
+Both are licensed under the SIL Open Font License, Version 1.1. The license text follows.
 
 ------------------------------------------------------------------------
 
 Copyright 2026 The Beacon Project Authors (https://github.com/Luffixos/fontzz)
+Copyright 2026 The Rondel Project Authors (https://github.com/Luffixos/fontzz)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is available with a FAQ at: https://openfontlicense.org
