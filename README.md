@@ -5,7 +5,7 @@
 byaku is an open-source macOS menu-bar app. It watches your webcam for faces that aren't yours and are looking
 at your screen. When it finds one, it reacts. Everything runs on your Mac, and no frame ever leaves it.
 
-> Status: **pre-alpha**. Guard works end to end; Away mode and a signed release are next. See [Roadmap](#roadmap).
+> Status: **alpha**. Guard and Away work end to end. Releases are ad-hoc signed (not notarized yet). See [Roadmap](#roadmap).
 
 ## Modes
 
@@ -49,14 +49,16 @@ The design target is ≤ ~1.5 W of extra power while guarding. Details are in
 - [x] Away actions: sound, lock
 - [x] Menu bar + settings
 - [x] Build-from-source `.app` with Open at login
-- [ ] Signed `.app` release
+- [x] Downloadable `.app` release (ad-hoc signed)
+- [ ] Developer ID signed and notarized release
 - [ ] Trained gaze classifier (`ml/`)
 
 ## Install
 
 **Download** (Apple silicon, macOS 14 or later)
 
-1. Get `Byaku-<version>-arm64.zip` from [Releases](https://github.com/amirdoescoding/byaku/releases) and unzip it.
+1. Download [`Byaku-arm64.zip`](https://github.com/amirdoescoding/byaku/releases/latest/download/Byaku-arm64.zip)
+   (the latest [release](https://github.com/amirdoescoding/byaku/releases)) and unzip it.
 2. Move `Byaku.app` to Applications and open it.
 3. byaku isn't notarized yet (no paid Apple developer account), so macOS blocks the first open. Go to
    System Settings → Privacy & Security, scroll down and click **Open Anyway**. Or, in Terminal:
