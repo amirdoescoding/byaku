@@ -1,4 +1,3 @@
-import { interpolate, useCurrentFrame, Easing } from 'remotion';
 import { BLADE_L, BLADE_R, RING } from '../components/Mascot';
 
 export type Mode = 'whisper' | 'iris' | 'shade' | 'awaken';
@@ -13,8 +12,9 @@ export const HEIGHT = 550;
 export const POSTER_FRAME = 120;
 
 const BANNER_LINES = ['Mind your screen.', 'Eyes on your screen.', 'Be aware.', 'Not your face.'];
-const ease = Easing.out(Easing.cubic);
-const ramp = (f: number, a: number, b: number, from = 0, to = 1) => interpolate(f, [a, b], [from, to], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: ease });
+// Plain math (no remotion import) so the static poster doesn't pull the Remotion runtime into the first load.
+const ease = (t: number) => 1 - (1 - t) ** 3;
+const ramp = (f: number, a: number, b: number, from = 0, to = 1) => from + (to - from) * ease(Math.min(1, Math.max(0, (f - a) / (b - a))));
 
 const Mark = ({ x, y, size, color }: { x: number; y: number; size: number; color: string }) => (
   <svg x={x} y={y} width={size} height={size} viewBox="0 0 64 64">
@@ -113,6 +113,3 @@ export function Scene({ frame, mode, scenario }: SceneProps & { frame: number })
 }
 
 /** Remotion composition: same scene, driven by the Player's clock. */
-export function GuardScene(props: SceneProps) {
-  return <Scene frame={useCurrentFrame()} {...props} />;
-}

@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { Player, type PlayerRef } from '@remotion/player';
-import { DURATION, FPS, GuardScene, HEIGHT, POSTER_FRAME, Scene, WIDTH, type Mode, type Scenario } from '../remotion/GuardScene';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import type { PlayerRef } from '@remotion/player';
+import { HEIGHT, POSTER_FRAME, Scene, WIDTH, type Mode, type Scenario } from '../remotion/GuardScene';
 import { Segmented } from './ui/toggle-group';
+
+// The Player chunk loads only once the demo scrolls into view; the controls hydrate early so keyboard users can reach them.
+const LivePlayer = lazy(() => import('../remotion/LivePlayer'));
 
 const MODES: [Mode, string, string][] = [
   ['whisper', 'Whisper', 'A banner. Nothing else.'],
@@ -21,9 +24,10 @@ export default function GuardDemo() {
   const cur = MODES.find((m) => m[0] === mode)!;
 
   useEffect(() => {
-    const still = matchMedia('(prefers-reduced-motion:reduce)').matches;
-    if (still) return; // reduced motion: keep the static poster
-    setLive(true);
+    if (matchMedia('(prefers-reduced-motion:reduce)').matches || !box.current) return; // reduced motion: keep the static poster
+    const io = new IntersectionObserver(([e]) => { if (e?.isIntersecting) { setLive(true); io.disconnect(); } }, { rootMargin: '200px' });
+    io.observe(box.current);
+    return () => io.disconnect();
   }, []);
 
   /* pause the clock while the demo is off-screen or the tab is hidden */
@@ -41,9 +45,9 @@ export default function GuardDemo() {
     <div className="flex flex-col items-center">
       <div ref={box} className="w-full" style={{ aspectRatio: `${WIDTH} / ${HEIGHT}` }}>
         {live ? (
-          <Player ref={player} component={GuardScene} inputProps={{ mode, scenario }} durationInFrames={DURATION} fps={FPS}
-            compositionWidth={WIDTH} compositionHeight={HEIGHT} autoPlay loop controls={false} acknowledgeRemotionLicense
-            style={{ width: '100%', height: '100%' }} />
+          <Suspense fallback={<Scene frame={POSTER_FRAME} mode={mode} scenario={scenario} />}>
+          <LivePlayer ref={player} mode={mode} scenario={scenario} />
+          </Suspense>
         ) : (
           <Scene frame={POSTER_FRAME} mode={mode} scenario={scenario} />
         )}

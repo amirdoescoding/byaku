@@ -80,3 +80,9 @@ a { color: inherit; }
 @keyframes acc-down { from { height: 0; opacity: 0; } to { height: var(--radix-accordion-content-height); opacity: 1; } }
 @keyframes acc-up { from { height: var(--radix-accordion-content-height); opacity: 1; } to { height: 0; opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .acc-content { animation: none !important; } }
+
+/* touch: 44 px hit areas for controls and standalone links (inline prose links are exempt, WCAG 2.5.8) */
+@media (pointer: coarse) {
+  .seg button { height: 44px; }
+  header a, footer a { display: inline-flex; align-items: center; min-height: 44px; }
+}

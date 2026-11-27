@@ -36,16 +36,16 @@ const pipeline = [
       <p class="mx-auto mb-9 mt-6 max-w-[42ch] text-balance text-[17px] text-mute md:text-xl">byaku watches your webcam for faces that aren't yours. It warns you, or locks the screen when you're away. Nothing leaves your Mac.</p>
       <a class="btn hero-btn" id="dl" href={DOWNLOAD}>Download for Mac</a>
       <p class="mt-3.5 text-sm text-mute">Apple silicon · macOS 14+</p>
-      <a href="#demo" class="tag absolute bottom-7 flex items-center gap-2 no-underline">See it happen <svg class="size-3 fill-none stroke-mute" strokeWidth="1.5" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1v10M1.5 6.5L6 11l4.5-4.5" /></svg></a>
+      <a href="#demo" class="tag absolute bottom-7 flex min-h-11 items-center gap-2 no-underline">See it happen <svg class="size-3 fill-none stroke-mute" strokeWidth="1.5" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1v10M1.5 6.5L6 11l4.5-4.5" /></svg></a>
     </section>
 
-    <section id="demo" class="s" data-expr="focus" data-name="Demo">
+    <section id="demo" tabindex="-1" class="s outline-none" data-expr="focus" data-name="Demo">
       <div class="col wide">
         <div class="text-center">
           <p class="tag mx-auto">Demo</p><h2>See it happen.</h2>
           <p class="mx-auto mb-12">Pick a mode. Someone looks. byaku answers.</p>
         </div>
-        <GuardDemo client:visible />
+        <GuardDemo client:idle />
       </div>
     </section>
 
@@ -84,7 +84,7 @@ const pipeline = [
         <p>byaku keeps the camera at low resolution and checks each frame, in memory, in six steps.</p>
         <ol class="mt-10 list-none p-0">
           {pipeline.map(([t, b], i) => (
-            <li class="grid grid-cols-[2.5rem_1fr] gap-x-2 border-t border-line py-5 last:border-b md:grid-cols-[3rem_14rem_1fr]">
+            <li class="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-t border-line py-5 last:border-b md:grid-cols-[3rem_14rem_1fr]">
               <span class="tag pt-1.5">{String(i + 1).padStart(2, '0')}</span>
               <h3 class="font-sans text-lg">{t}</h3>
               <p class="col-start-2 text-[15px] md:col-start-3">{b}</p>
@@ -101,9 +101,9 @@ const pipeline = [
         <h2>Three steps.</h2>
         <p class="mb-8">Apple silicon, macOS 14 or later.</p>
         <ol class="list-none p-0">
-          <li class="grid grid-cols-[2.5rem_1fr] border-t border-line py-5"><span class="tag pt-1.5">01</span><p class="!text-ink">Download <a href={DOWNLOAD}>Byaku-arm64.zip</a> and unzip it.</p></li>
-          <li class="grid grid-cols-[2.5rem_1fr] border-t border-line py-5"><span class="tag pt-1.5">02</span><p class="!text-ink">Move <code>Byaku.app</code> to Applications and open it.</p></li>
-          <li class="grid grid-cols-[2.5rem_1fr] border-y border-line py-5"><span class="tag pt-1.5">03</span>
+          <li class="grid grid-cols-[2.5rem_minmax(0,1fr)] border-t border-line py-5"><span class="tag pt-1.5">01</span><p class="!text-ink">Download <a href={DOWNLOAD}>Byaku-arm64.zip</a> and unzip it.</p></li>
+          <li class="grid grid-cols-[2.5rem_minmax(0,1fr)] border-t border-line py-5"><span class="tag pt-1.5">02</span><p class="!text-ink">Move <code>Byaku.app</code> to Applications and open it.</p></li>
+          <li class="grid grid-cols-[2.5rem_minmax(0,1fr)] border-y border-line py-5"><span class="tag pt-1.5">03</span>
             <div><p class="!text-ink">byaku isn't notarized yet (no paid Apple developer account), so macOS blocks the first open. Go to System Settings → Privacy &amp; Security, scroll down and click <strong class="font-medium">Open Anyway</strong>.</p>
             <p class="mt-3 text-[15px]">Or, in Terminal: <code class="block overflow-x-auto whitespace-nowrap rounded bg-surface px-2 py-1.5 text-[13px] text-ink md:mt-0">xattr -dr com.apple.quarantine /Applications/Byaku.app</code></p>
             <p class="mt-3 text-[15px]">Each release has a new signature, so after an update macOS asks for camera access again.</p></div></li>

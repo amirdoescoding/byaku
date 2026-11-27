@@ -73,9 +73,9 @@ export default function Roamer() {
       const vw = innerWidth, vh = innerHeight, sy = scrollY, gut = (vw - 960) / 2, roam = gut >= 130 && !RM();
       const r = slot.getBoundingClientRect(), hx = r.left + r.width / 2, hy = r.top + r.height / 2, hs = r.width;
       const vm = sy + vh / 2; idx = 0; secs.forEach((s, i) => { if (s.offsetTop <= vm) idx = i; });
-      const side = ((idx + bias) % 2) ? 1 : 0, rx = side ? vw - gut / 2 : gut / 2, w = roam ? sm(clamp(sy / (vh * .8), 0, 1)) : 0;
+      const side = ((idx + bias) % 2) ? 1 : 0, rx = side ? vw - gut / 2 : gut / 2, w = roam ? sm(clamp(sy / (vh * .8), 0, 1)) : 0, wx = roam ? sm(clamp(sy / (vh * .35), 0, 1)) : 0; // sideways first: clear the hero text before dropping
       const ry = vh * .5 + Math.sin(sy / 380) * vh * .16, sway = Math.sin(sy / 260) * gut * .14;
-      return { x: hx + (rx + sway - hx) * w, y: hy + (ry - hy) * w, s: hs + (72 - hs) * w, roam };
+      return { x: hx + (rx + sway - hx) * wx, y: hy + (ry - hy) * w, s: hs + (72 - hs) * wx, roam };
     }
     function frame(t: number) {
       raf = 0; if (document.hidden) return;
