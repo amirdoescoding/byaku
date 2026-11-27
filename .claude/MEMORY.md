@@ -72,3 +72,8 @@
   kick drop at film 13.13 s; `B(k)` anchors on the bar downbeat at 12.77 s. 3D (three.js clay) and modelled people were
   rejected as cheap; manga lettering, per-line entrances, anime hard cuts and byaku physically pushing text are what landed.
   The user's Epidemic Creator plan has MCP, not the developer API (both API keys → 401); SFX are still to add via the MCP.
+- 2026-11-27 PR #18 guided tour: the coach card is a custom-view NSMenuItem at index 0 (`CoachRow`). Buttons in a menu item view keep
+  the menu open; a click anywhere outside closes it, so the tour reopens the menu on a stray close. Live `isEnabled` /
+  `attributedTitle` changes redraw an open menu. Gotcha: `attributedTitle = nil` (or nil + re-setting the same title) blanks the
+  row, so un-light with a plain attributed string. Steps: Guard, Away, Alarm sound, Message…, Mode, Set up face (user: "core only").
+  Testing without synthetic clicks: compile `Sources/Byaku/*.swift` minus main.swift + a harness main (`swiftc -module-name Byaku`), screencapture.
