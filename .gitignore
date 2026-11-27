@@ -76,3 +76,8 @@ site/.astro
 site/.screens
 .vercel
 .env*
+
+# BYAKU: launch video (Epidemic audio is licensed, never commit; renders stay local)
+video/node_modules
+video/public/audio/
+video/out/

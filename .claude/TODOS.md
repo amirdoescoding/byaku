@@ -21,6 +21,10 @@ Gate on the `v0.1.0-rc1` prerelease (download it in a browser on a new macOS use
 - [ ] Site: battery FAQ says target only; add the measured number after launch test 8
 - [ ] Site: custom domain later (optional); README + og meta point at byaku-eight.vercel.app
 
+- [x] Launch film `video/` (PR C `feat/launch-video`): 2D Remotion, cut to EZ4U, final render `video/out/byaku-launch.mp4`
+- [x] Launch film: SFX synthesized locally (`video/scripts/sfx.py`, licence-clean; Epidemic MCP 401'd): click, slam ×2, rumble, wall-break crash, whoosh, wink ting
+- [ ] Launch film: 9:16 cutdown for Reels/Shorts (optional)
+
 ## Next (pick one per PR)
 
 - [ ] **Onboarding tour is guided, not click-anywhere** (rc1 QA, 2026-11-27): a stray click starts the founder video and the

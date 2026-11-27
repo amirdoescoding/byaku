@@ -67,4 +67,8 @@
   byaku-eight.vercel.app (byaku.vercel.app taken). Ignore step: non-main always builds, main builds only on `site/` changes.
   Change Vercel settings with `vercel api` (reading the CLI token file is blocked). The gstack design binary has no image key, so
   shotgun used HTML sketches with the real fonts. Headless renders: Playwright headless shell in ~/Library/Caches/ms-playwright.
-
+- 2026-11-27 Launch film (`feat/launch-video`): `video/` = 2D Remotion, light theme, 32.2 s, 1920×1080@30. Track: Epidemic
+  "EZ4U (Instrumental)" 32 s edit bd570b1a in `video/public/audio/ez4u.mp3` (gitignored, never commit). Beat grid 82.7 BPM,
+  kick drop at film 13.13 s; `B(k)` anchors on the bar downbeat at 12.77 s. 3D (three.js clay) and modelled people were
+  rejected as cheap; manga lettering, per-line entrances, anime hard cuts and byaku physically pushing text are what landed.
+  The user's Epidemic Creator plan has MCP, not the developer API (both API keys → 401); SFX are still to add via the MCP.
