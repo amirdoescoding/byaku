@@ -429,8 +429,8 @@ function Aura({ t, on, x, y, r, color }: { t: number; on: number; x: number; y: 
 const HITS = hitTimes(LINES);
 /** Synthesized SFX (video/scripts/sfx.py): [file, film seconds, volume]. */
 const SFX: [string, number, number][] = [
-  ['click', MB.click, 0.6], ...HITS.map((h): [string, number, number] => ['slam', h, 0.55]), ['rumble', B(5.6), 0.45],
-  ['crash', SMASH, 0.7], ['whoosh', ROLL_AWAY, 0.5], ['ting', B(24), 0.35],
+  ['click', MB.click, 0.8], ...HITS.map((h): [string, number, number] => ['slam', h, 0.7]), ['rumble', B(5.6), 0.6],
+  ['crash', SMASH, 0.9], ['whoosh', ROLL_AWAY, 0.65], ['ting', B(24), 0.45],
 ];
 
 export function Film({ theme = 'dark' }: { theme?: keyof typeof PALETTES }) {
