@@ -1,9 +1,8 @@
 # Restart
 
-**2026-11-27**: v0.1.0 is released (stable `releases/latest/download/Byaku-arm64.zip` → 200; rc1 deleted). PR B
-`feat/site` is pushed with a PR open: the landing page in `site/` (Astro static + React islands, shadcn-style Radix,
-Remotion Player demo), mockups in `design/site/`. Vercel project `byaku` (root `site`, framework Astro; previews always
-build, `main` builds only when `site/` changes). Production = byaku-eight.vercel.app after merge.
+**2026-11-27**: PR C `feat/launch-video` is open with the launch film in `video/` (2D Remotion, light theme, 32.2 s). The user
+approved v16 ("SIUUU BRAVO"); the final render is `video/out/byaku-launch.mp4` (gitignored). `cd video && npm i && npx remotion
+studio` to edit; `npm run render` re-renders. The track (`video/public/audio/ez4u.mp3`, Epidemic EZ4U 32 s edit) is local only.
 
-Next: merge PR B, check production, enable Web Analytics, then check on a real iPhone. App side: the launch gate tests 1–9 in
-TODOS, then B2 multi-pose template.
+Next: merge PR C. Then swap in the full-quality track, add SFX through the Epidemic MCP (needs `claude mcp add` + restart), and
+re-render. Still open from PR B: merge the site, enable Analytics, check on a real iPhone. App: launch gate tests 1–9.

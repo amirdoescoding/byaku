@@ -73,6 +73,7 @@ Sources/Byaku/
 Tests/
 ml/          uv project: eval, conversion, training (not shipped)
 site/        landing page: Astro static + React islands, deployed by Vercel (root `site`); never part of the app
+video/       launch film: 2D Remotion (src/Film.tsx), reuses site Mascot paths + GuardScene; licensed audio gitignored; never part of the app
 ```
 
 ## Power tactics
