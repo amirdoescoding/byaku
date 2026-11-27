@@ -1,9 +1,9 @@
 # Restart
 
-**2026-11-27**: Going public. PR #15 `chore/first-release` is open: `release.yml` also uploads a stable
-`Byaku-arm64.zip` (the site links `releases/latest/download/Byaku-arm64.zip`), and hyphen tags publish as prereleases.
-`v0.1.0-rc1` prerelease is out (checksum, codesign, version verified; `latest` 404s until `v0.1.0`, as intended).
-Plan: `~/.claude/plans/onboarding-is-finished-and-ticklish-kite-of-2ae572eb-1064-41a4-ab02-07b4089a3b73.md`.
+**2026-11-27**: v0.1.0 is released (stable `releases/latest/download/Byaku-arm64.zip` → 200; rc1 deleted). PR B
+`feat/site` is pushed with a PR open: the landing page in `site/` (Astro static + React islands, shadcn-style Radix,
+Remotion Player demo), mockups in `design/site/`. Vercel project `byaku` (root `site`, framework Astro; previews always
+build, `main` builds only when `site/` changes). Production = byaku-eight.vercel.app after merge.
 
-Next: the user runs the pre-launch gate on the rc (TODOS → Launch), then merges #15, tags `v0.1.0`, deletes the rc
-release + tag. Then PR B `feat/site`: design round 2 → mockups in `design/site/` → OK → static `site/` on Vercel.
+Next: merge PR B, check production, enable Web Analytics, then check on a real iPhone. App side: the launch gate tests 1–9 in
+TODOS, then B2 multi-pose template.

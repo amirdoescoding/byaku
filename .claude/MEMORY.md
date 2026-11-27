@@ -62,3 +62,9 @@
 - AVCaptureVideoPreviewLayer + our VNSequenceRequestHandler on the same session deadlocked on macOS 15 (camera queue stuck in
   Vision's dispatchGroupWait; main stuck in stopRunning → FigObjectDetectionMetadataGenerator → VNSession lock). Draw camera frames
   ourselves; never call stopRunning on main (Camera.stop is async now).
+- 2026-11-27 PR B site: `site/` = Astro static + React islands, shadcn-style Radix restyled to palette tokens; Remotion runtime only
+  in the lazy `LivePlayer` chunk (keep `Scene` free of `remotion` imports). Vercel project `byaku`, root `site`; prod domain
+  byaku-eight.vercel.app (byaku.vercel.app taken). Ignore step: non-main always builds, main builds only on `site/` changes.
+  Change Vercel settings with `vercel api` (reading the CLI token file is blocked). The gstack design binary has no image key, so
+  shotgun used HTML sketches with the real fonts. Headless renders: Playwright headless shell in ~/Library/Caches/ms-playwright.
+
