@@ -74,3 +74,5 @@ site/node_modules
 site/dist
 site/.astro
 site/.screens
+.vercel
+.env*
