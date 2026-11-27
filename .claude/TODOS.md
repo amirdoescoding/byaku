@@ -27,7 +27,7 @@ Gate on the `v0.1.0-rc1` prerelease (download it in a browser on a new macOS use
 
 ## Next (pick one per PR)
 
-- [ ] **Onboarding tour is guided, not click-anywhere** (rc1 QA, 2026-11-27): a stray click starts the founder video and the
+- [x] **Onboarding tour is guided, not click-anywhere** (`feat/guided-tour`) (rc1 QA, 2026-11-27): a stray click starts the founder video and the
   tour falls apart. Keep everything else the same. Light one menu row at a time, dim the rest; **Next** moves on; the last step
   is **Finish**, and only Finish plays the video.
 - [ ] **Away message: hold to record** (rc1 QA): the fixed 8 s take confused a tester, who had to redo it. Press and hold

@@ -43,12 +43,19 @@ rotates about its outer base and scales about its own centre.
    - "Here's the menu." [Skip] [Show me]. The mascot looks up-right. The full-screen `CoachOverlay` (level `.popUpMenu + 1`,
      click-through) is built invisibly here, because building it on the press made the first flight stutter.
    - Show me: the window fades, and the mascot whooshes along an arc (x leads, y lags) to beside the status item. The real
-     menu opens 0.25 s after the press. The mascot raises its brows (flick), then faces the menu and blinks.
-   - The bubble (288 × 76, notch on its right edge) sits 14 pt left of the menu, centred on the hovered row (the pointer's
-     y). It shows the item name and shortcut, one line, and "N of M · Click anywhere to finish".
-   - Copy lives in `CoachOverlay.coach`, keyed by item title. The volume slider, the Mode submenu entries and Welcome tour…
-     aren't counted.
-   - Unvisited-row dots from the mockups were cut: a native NSMenu can't draw in its gutter without custom views for every row.
+     menu opens 0.25 s after the press. The mascot raises its brows (flick), docks 14 pt left of the menu level with the
+     coach card, then faces the menu and blinks.
+   - **Guided, one step at a time** (rc1 QA: testers didn't know to hover, clicked, and the video started out of nowhere).
+     The coach card (`CoachRow`) is the menu's first item, a custom view like the sound rows, so its buttons keep the menu
+     open. It shows the row's name and shortcut, one line, "N of M", and [Skip tour] [Next]; the last step says Finish.
+   - Only the current row is enabled (semibold title); every other row uses the native disabled grey and the volume slider
+     sits at 35%. Nothing in the menu acts during the tour: actions are stripped, submenu picks are off.
+   - Steps: Guard, Away, Alarm sound, Message…, Mode, Set up face (the core features, in menu order; Message… only in the
+     app bundle). Copy lives in `CoachOverlay.coach`, keyed by item title.
+   - Strict: a click outside or Esc closes the menu, and it reopens on the same step after 0.1 s. Only Finish or Skip tour
+     go on to the video. If no menu opens within 1 s (a hidden status item), onboarding ends.
+   - No Next for 6 s: the docked mascot gets stressed; the next press cheers it up.
+   - Return can't press Next (keys inside an open menu go to the menu); mouse and VoiceOver can. Each step is announced.
 4. **Founder video** (`founder.mp4`, bundled):
    - From the tour, the mascot flies straight from the menu bar into the lockup. The window is resized to 680 × 424
      while invisible, then fades in. The handoff waits for the flight springs to settle, then cross-fades (0.12 s) to the

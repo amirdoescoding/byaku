@@ -57,12 +57,15 @@ enum Tokens {
         /// Outro (seconds from the video's end): scrim settles, the mark returns, smiles, the thanks card arrives.
         static let scrim = 0.36, scrimAlpha: CGFloat = 0.92, backAt = 0.12, smileAt = 0.52, smileHold = 0.74
         static let thanksAt = 0.64, buttonStagger = 0.06, textRise = 0.26
-        /// Tour: the menu opens this long after the flight starts; the bubble sits this far left of the menu.
-        static let menuAfter = 0.25, bubbleGap: CGFloat = 14, locate = 0.05
-        /// Tour: seconds without a hover before the mascot gets stressed.
+        /// Tour: the menu opens this long after the flight starts; the docked mascot sits this far left of the menu.
+        static let menuAfter = 0.25, dockGap: CGFloat = 14, locate = 0.05
+        /// Tour: seconds without Next before the mascot gets stressed.
         static let impatient = 6.0
         /// Tour: if no menu has opened this long after opening it, end onboarding rather than hang invisible.
-        static let menuCheck = 1.0
+        /// A stray close (a click outside, Esc) reopens the menu on the same step after `reopen`.
+        static let menuCheck = 1.0, reopen = 0.1
+        /// Tour: the volume slider's opacity while it's out of play (the other rows use the native disabled grey).
+        static let dimmed: CGFloat = 0.35
         /// Synthesised sounds (Sfx): peak level 0…1 and lengths.
         static let whooshLevel: Float = 0.22, flickLevel: Float = 0.16, whoosh = 0.42, flick = 0.07
         /// Mark colour change (accent ↔ ink at the video's corner) and the window fade while the tour is on the menu.

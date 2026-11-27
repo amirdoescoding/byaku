@@ -126,7 +126,6 @@ final class AppController: NSObject, NSMenuDelegate {
 
     func menuDidClose(_ menu: NSMenu) { awayNote = nil; onboarding?.menuClosed() }
     func menuWillOpen(_ menu: NSMenu) { if onboarding?.touring == true { onboarding?.menuOpened(menu) } }
-    func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) { if onboarding?.touring == true { onboarding?.highlight(item) } }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
@@ -212,6 +211,7 @@ final class AppController: NSObject, NSMenuDelegate {
             menu.addItem(login)
         }
         menu.addItem(entry("Quit byaku", #selector(quit), key: "q"))
+        if onboarding?.touring == true { onboarding?.dress(menu) }  // guided tour: coach card first, one row lit
     }
 
     private func entry(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
