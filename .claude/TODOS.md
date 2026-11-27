@@ -1,6 +1,30 @@
 # Backlog
 
+## Launch (2026-11-27)
+
+Gate on the `v0.1.0-rc1` prerelease (download it in a browser on a new macOS user account):
+- [ ] 1 Clean install: Open Anyway flow matches README step 3 exactly (macOS 15)
+- [ ] 2 Onboarding end to end on the fresh account; founder video plays offline
+- [ ] 3 Owner vs stranger (second person or photo) after a rescan: alerts on the stranger only
+- [ ] 4 Away: stranger → siren + lock; revoke camera in System Settings while armed → locks
+- [ ] 5 No network: `nettop -p Byaku` / `lsof -i -a -c Byaku` over ~5 min of Guard → none
+- [ ] 6 No frames on disk: `sudo fs_usage -w -f filesys Byaku` → only prefs / Application Support / Keychain
+- [ ] 7 Delete face data: one click, next launch asks for a scan
+- [ ] 8 Power: `scripts/power.sh` Guard + one face on battery, ≤ ~1.5 W; record it
+- [ ] 9 Open at login survives a reboot; Quit works
+- [x] 10 Fonts in `assets/fonts` are all SIL OFL 1.1 (ship `OFL.txt` with the site)
+- [ ] Merge #15, tag `v0.1.0`, delete the rc release and tag; `curl -sIL …/releases/latest/download/Byaku-arm64.zip` → 200
+- [ ] PR B `feat/site`: design round 2, mockups (`design/site/`), OK, build static `site/`, Vercel (root `site`, ignored build step), Web Analytics, Remotion Guard demo < 2 MB
+
 ## Next (pick one per PR)
+
+- [ ] **Onboarding tour is guided, not click-anywhere** (rc1 QA, 2026-11-27): a stray click starts the founder video and the
+  tour falls apart. Keep everything else the same. Light one menu row at a time, dim the rest; **Next** moves on; the last step
+  is **Finish**, and only Finish plays the video.
+- [ ] **Away message: hold to record** (rc1 QA): the fixed 8 s take confused a tester, who had to redo it. Press and hold
+  Record, a live waveform plays while held, and releasing saves. Mockups first.
+- [ ] Updates: no auto-update yet (users re-download). Decide with notarization: manual + GitHub release watch, or opt-in
+  Sparkle (it would be the app's only network call, so it's against invariant 2 unless off by default)
 
 - [ ] Away sound picker: Return doesn't pick a highlighted sound (custom menu-row views); click or VoiceOver press only
 - [ ] Message panel: picking a sound while the panel plays the message stops it, but the panel's countdown sticks at 1 until Stop

@@ -32,6 +32,7 @@ jobs:
           ditto -c -k --keepParent build/Byaku.app "$zip"
           shasum -a 256 "$zip" > "$zip.sha256"
           cat "$zip.sha256"
+          cp "$zip" Byaku-arm64.zip  # stable name: the site links releases/latest/download/Byaku-arm64.zip
       - uses: actions/upload-artifact@v4
         with:
           name: Byaku-${{ env.ver }}-arm64
@@ -40,4 +41,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes Byaku-*-arm64.zip Byaku-*-arm64.zip.sha256
+        run: |
+          pre=; case "$GITHUB_REF_NAME" in *-*) pre=--prerelease;; esac  # v0.1.0-rc1 stays out of releases/latest
+          gh release create "$GITHUB_REF_NAME" --generate-notes $pre Byaku-*arm64.zip Byaku-*-arm64.zip.sha256

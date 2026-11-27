@@ -1,10 +1,9 @@
 # Restart
 
-**2026-11-27**: PR B1 `feat/face-scan` is pushed with a PR open, waiting for CI and the user's merge. Guided face scan
-with a live mesh mask (camera beat → mask → sweep → straight/left/right → collapse into the ring). The user tested it on
-their Mac after the deadlock fix: "everything is good".
-- Deadlock: an AVCaptureVideoPreviewLayer on the session locked up with our Vision requests, so the camera beat now
-  draws our own frames, and `Camera.stop()` runs off the main thread.
+**2026-11-27**: Going public. PR #15 `chore/first-release` is open: `release.yml` also uploads a stable
+`Byaku-arm64.zip` (the site links `releases/latest/download/Byaku-arm64.zip`), and hyphen tags publish as prereleases.
+`v0.1.0-rc1` prerelease is out (checksum, codesign, version verified; `latest` 404s until `v0.1.0`, as intended).
+Plan: `~/.claude/plans/onboarding-is-finished-and-ticklish-kite-of-2ae572eb-1064-41a4-ab02-07b4089a3b73.md`.
 
-Next: B2, the multi-pose template behind a pre-registered margin bar. Still open: owner match after a rescan with a
-second person or a photo.
+Next: the user runs the pre-launch gate on the rc (TODOS → Launch), then merges #15, tags `v0.1.0`, deletes the rc
+release + tag. Then PR B `feat/site`: design round 2 → mockups in `design/site/` → OK → static `site/` on Vercel.
