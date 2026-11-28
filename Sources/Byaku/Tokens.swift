@@ -109,6 +109,8 @@ enum Tokens {
     enum Motion {
         static let enter = 0.20, exit = 0.15, hover = 0.12, press = 0.10, release = 0.16, check = 0.24
         static let edgeIn = 0.28, spinTurn = 0.6, countStep = 1.0, autoClose = 3.0, startTimeout = 4.0
+        /// Message waves: one level sample per step while recording or playing (WaveView scrolls one bar per sample).
+        static let meterStep = 1.0 / 30
         static let pressScale: CGFloat = 0.97, enterScale: CGFloat = 0.96
         /// Strong ease-out. No ease-in anywhere: feedback must start fast.
         static var easeOut: CAMediaTimingFunction { CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1) }

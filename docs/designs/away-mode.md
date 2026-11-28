@@ -42,13 +42,22 @@ Mockups: `design/away/` (`src/mockups.py`), approved 2026-11-26 (icon A, menu as
   rebuilt if the output device changes mid-alarm (`AVAudioEngineConfigurationChange`), so unplugging headphones keeps it sounding.
 
 ## Message (PR11)
-- "Message…" (subtitle "Spoken line" / "Recorded · N s") opens `MessagePanel` (336 × 160, × in the corner, Esc closes).
-  States: Record a message → Waiting for microphone (first time) → Recording (8 s countdown, Stop keeps the take) →
-  Message saved (Delete / Record again / **Play**: replays at the alarm volume) · Microphone access is off · Couldn't record.
+- "Message…" (subtitle "Spoken line" / "Recorded · N s") opens `MessagePanel` (352 × 160, × in the corner, Esc closes).
+  **Hold to record, let go to save** (2026-11-27, replaced the 8 s countdown that confused users; mockup
+  `design/away/sheet-message-hold.png`). States: Record a message (Cancel / **Hold to record**) → Waiting for microphone
+  (first time; after Allow it returns to idle, hold again) → Recording (the button reads "Release to save" while held) →
+  Message saved (Delete / Hold to record / **Play**: replays at the alarm volume) · Too short (< 0.5 s) · Microphone
+  access is off · Couldn't record.
+- Waves (`WaveView`, 28 bars, newest on the right) follow the mic level while recording and the file's level while playing,
+  sampled at `Tokens.Motion.meterStep` (30 Hz). A 1 pt line under them fills with time used of the 8 s cap, or with the
+  playback position. No numbers. Holding past 8 s saves by itself; the later release does nothing.
+- Keyboard: Space held on the focused button records (the hold button takes focus; Return stays the default button).
+  VoiceOver can't hold, so its press toggles: first press starts, second saves. If another app takes focus mid-hold, the
+  take is dropped like a Cancel (its key-up would never arrive).
 - Saved to `~/Library/Application Support/byaku/message.m4a` (AAC mono). A new take goes to `message-new.m4a` and replaces the
   old one only when kept; takes under 0.5 s are dropped. Delete is one click (invariant 5).
 - The mic runs only while recording (`NSMicrophoneUsageDescription`). With VoiceOver on, the mic starts 2.5 s after the
-  "Recording" announcement so it isn't in the take. Locking, quitting or arming Away drops a take in progress.
+  "Recording" announcement so it isn't in the take; a release inside that lead goes back to idle. Locking, quitting or arming Away drops a take in progress.
 - At alarm time: if the file is missing or won't play, the spoken line plays instead. Never a silent gap.
 - Hidden in a terminal-run CLI (mic permission would go to the terminal, which has no usage string).
 

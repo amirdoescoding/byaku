@@ -188,15 +188,59 @@ def message_sheet(t):
     return (f'<div class="panel" style="background:{k["bg"]}"><p class="cap" style="color:{k["mute"]}">{t} · alarm sound + message</p>'
             f'<div class="grid2">{menus}</div><div style="height:48px"></div><div class="grid2">{cells}</div></div>')
 
+
+# ---- Hold to record (no countdown): waves follow the voice, a 1 pt line shows time used of 8 s ------------------
+import math
+def waves(t, levels, frac, ink=None):
+    k = TH[t]; c = ink or k["ink"]; n = len(levels); bw, gap, h = 3, 3, 32
+    w = n * (bw + gap) - gap
+    bars = "".join(f'<rect x="{i*(bw+gap)}" y="{(h-max(3,l*h))/2:.1f}" width="{bw}" height="{max(3,l*h):.1f}" rx="1.5" fill="{c}"/>' for i, l in enumerate(levels))
+    line = (f'<rect x="0" y="{h+8}" width="{w}" height="1" fill="{k["line"]}"/>'
+            f'<rect x="0" y="{h+8}" width="{w*frac:.1f}" height="1" fill="{k["ink"]}"/>')
+    return f'<svg width="{w}" height="{h+9}" viewBox="0 0 {w} {h+9}" aria-hidden="true">{bars}{line}</svg>'
+
+def speech(n, filled):  # deterministic speech-like envelope; bars past `filled` are flat (not yet spoken)
+    return [(0.15 + 0.85 * abs(math.sin(i * 0.9) * math.sin(i * 0.23 + 1)) if i < filled else 0.0) for i in range(n)]
+
+def hcard(t, glyph, title, body_or_waves, buttons, pressed=None):
+    k = TH[t]
+    def b(x):
+        prim = x.startswith("*"); x = x.lstrip("*")
+        st = (f"background:{k['ink']};color:{k['bg']};border-color:{k['ink']}" if prim else f"color:{k['ink']};border-color:{k['line']}")
+        if x == pressed: st += ";transform:scale(.96);filter:brightness(1.25)"
+        return f'<span class="btn" style="{st}">{x}</span>'
+    body = body_or_waves if body_or_waves.startswith("<svg") else f'<div class="bd" style="color:{k["mute"]}">{body_or_waves}</div>'
+    return (f'<div class="card w352" style="background:{k["surface"]};border-color:{k["line"]}">'
+            f'<div class="r1">{glyph}<div class="tx"><div class="tt" style="color:{k["ink"]}">{title}</div>{body}</div></div>'
+            f'<div class="r2">{"".join(b(x) for x in buttons)}</div></div>')
+
+def hold_sheet(t):
+    k = TH[t]
+    mic = MIC.format(c=k["ink"]); r = lambda *a: mb.ring48(t, *a)
+    N = 28
+    cases = [
+        ("idle · the button is the whole instruction", mic, "Record a message", "Hold the button and speak. Up to 8 s.", ["Cancel", "*Hold to record"], None),
+        ("holding, 3 s in · bars scroll in from the right with the mic level; the line fills to 8 s", mic, "Recording…",
+         waves(t, speech(N, N)[::-1][:N], 3/8), ["*Release to save"], "Release to save"),
+        ("released → saved · Delete is one click", r("ok"), "Message saved", "6 s. Stored on this Mac only.", ["Delete", "Hold to record", "*Play"], None),
+        ("playing · same waves, driven by the file; line = playback position", mic, "Playing…",
+         waves(t, speech(N, N), 2/6), ["*Stop"], None),
+        ("let go too soon (< 0.5 s)", r("seam"), "Too short", "Hold the button while you speak.", ["Cancel", "*Hold to record"], None),
+        ("mic denied", r("seam"), "Microphone access is off", "Allow byaku in System Settings, then try again.", ["Cancel", "*Open microphone settings…"], None),
+    ]
+    cells = "".join(f'<figure>{hcard(t, g, a, b, c, pr)}<figcaption style="color:{k["mute"]}">{n}</figcaption></figure>' for n, g, a, b, c, pr in cases)
+    return (f'<div class="panel" style="background:{k["bg"]}"><p class="cap" style="color:{k["mute"]}">{t} · message · hold to record (352 × 160)</p>'
+            f'<div class="grid2">{cells}</div></div>')
+
 CSS = mb.CSS + """
 .mrow{display:flex;align-items:flex-start}.mrow .menu+.menu{margin-left:-6px;margin-top:66px}
-.mi.hl{background:#0A64D8}.mi.two{height:34px}.card.w336{width:336px}.card.w336 .btn{white-space:nowrap}.card.w336 .tx{width:224px}.mi.two .lb{display:flex;flex-direction:column;gap:1px}.mi.two small{font-size:11px}
+.mi.hl{background:#0A64D8}.mi.two{height:34px}.card.w336{width:336px}.card.w352{width:352px}.card.w352 .btn{white-space:nowrap}.card.w352 .tx{width:240px}.card.w336 .btn{white-space:nowrap}.card.w336 .tx{width:224px}.mi.two .lb{display:flex;flex-direction:column;gap:1px}.mi.two small{font-size:11px}
 """ + ".grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:40px 32px;align-items:start}"
 
 def page():
     sec = lambda sid, f: f'<section id="{sid}" class="pair">{f("light")}{f("dark")}</section>'
     return (f'<!doctype html><html><head><meta charset="utf-8"><title>byaku Away mockups</title><style>{CSS}</style></head><body>'
-            + sec("icons", icons_sheet) + sec("menu", menu_sheet) + sec("volume", volume_sheet) + sec("slider", slider_sheet) + sec("sounds", message_sheet) + '</body></html>')
+            + sec("icons", icons_sheet) + sec("menu", menu_sheet) + sec("volume", volume_sheet) + sec("slider", slider_sheet) + sec("sounds", message_sheet) + sec("message-hold", hold_sheet) + '</body></html>')
 
 if __name__ == "__main__":
     html = page()
@@ -205,7 +249,7 @@ if __name__ == "__main__":
     with sync_playwright() as p:
         b = p.chromium.launch(); pg = b.new_page(viewport={"width": 1200, "height": 1000}, device_scale_factor=2)
         pg.set_content(html, wait_until="networkidle")
-        for s in ("icons", "menu", "volume", "slider", "sounds"):
+        for s in ("icons", "menu", "volume", "slider", "sounds", "message-hold"):
             pg.locator(f"#{s}").screenshot(path=str(OUT / f"sheet-{s}.png"))
         b.close()
     print("wrote", OUT / "mockups.html", "and 2 sheets")

@@ -122,12 +122,11 @@ func scale(_ s: CGFloat, about p: CGPoint) -> CATransform3D {
 
 // MARK: - ProgressRing
 
-/// 48 pt ring: spinner while the camera starts, an N s countdown (default 5), a drawn-on check, or a seam on failure.
+/// 48 pt ring: spinner while the camera starts, a drawn-on check, or a seam on failure.
 final class ProgressRing: NSView {
-    enum Phase: Equatable { case starting, counting(remaining: Int, of: Int = 5), done, failed }
+    enum Phase: Equatable { case starting, done, failed }
 
     private let track = CAShapeLayer(), progress = CAShapeLayer(), spinner = CAShapeLayer(), check = CAShapeLayer()
-    private let number = NSTextField(labelWithString: "")
     private(set) var phase = Phase.starting
 
     override init(frame: NSRect) {
@@ -143,11 +142,6 @@ final class ProgressRing: NSView {
             layer!.addSublayer(l)
         }
         progress.strokeEnd = 0; check.strokeEnd = 0
-        number.font = .monospacedDigitSystemFont(ofSize: 20, weight: .semibold)
-        number.alignment = .center
-        number.setAccessibilityElement(false)
-        number.frame = NSRect(x: 0, y: 12, width: 48, height: 24)
-        addSubview(number)
         setAccessibilityElement(false)  // the panel announces phases in words
         set(.starting)
     }
@@ -159,7 +153,6 @@ final class ProgressRing: NSView {
         track.strokeColor = cg(Tokens.line, in: self)
         let ink = cg(phase == .failed ? Tokens.mute : Tokens.ink, in: self)
         progress.strokeColor = ink; spinner.strokeColor = ink; check.strokeColor = ink
-        number.textColor = Tokens.ink
     }
 
     func set(_ new: Phase) {
@@ -177,17 +170,10 @@ final class ProgressRing: NSView {
             spinner.add(r, forKey: "spin")
         }
         track.isHidden = new == .done || new == .failed
-        number.stringValue = ""
         check.strokeEnd = 0
         switch new {
         case .starting:
             progress.strokeStart = 0; progress.strokeEnd = 0
-        case .counting(let r, let n):
-            number.stringValue = "\(r)"
-            progress.strokeStart = 0
-            let to = CGFloat(n + 1 - r) / CGFloat(n)  // the ring reaches the next step as this second runs out
-            if reduced { progress.removeAllAnimations(); progress.strokeEnd = CGFloat(n - r) / CGFloat(n) }
-            else { animate(progress, "strokeEnd", to: to, duration: Tokens.Motion.countStep, timing: CAMediaTimingFunction(name: .linear)) }
         case .done:
             progress.removeAllAnimations(); progress.strokeStart = 0; progress.strokeEnd = 1
             if reduced { check.strokeEnd = 1 } else { animate(check, "strokeEnd", to: 1, duration: Tokens.Motion.check) }
@@ -198,13 +184,63 @@ final class ProgressRing: NSView {
     }
 }
 
+// MARK: - WaveView
+
+/// Message waves: 28 bars that scroll in from the right, one audio-level sample each, over a 1 pt line that fills with
+/// time used (recording, of the 8 s cap) or played. Moves only with the audio, so Reduce Motion changes nothing.
+final class WaveView: NSView {
+    private static let count = 28, barWidth: CGFloat = 3, gap: CGFloat = 3, tall: CGFloat = 32
+    static let size = NSSize(width: CGFloat(count) * (barWidth + gap) - gap, height: tall + 9)
+    private var levels = [Float](repeating: 0, count: count)
+    private let bars = (0..<count).map { _ in CALayer() }, track = CALayer(), fill = CALayer()
+    private var progress: Double = 0
+
+    override init(frame: NSRect) {
+        super.init(frame: NSRect(origin: frame.origin, size: Self.size))
+        wantsLayer = true
+        for l in bars + [track, fill] { layer!.addSublayer(l) }
+        bars.forEach { $0.cornerRadius = Self.barWidth / 2 }
+        setAccessibilityElement(false)  // the panel announces phases in words
+        recolor(); place()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    /// One sample: the newest bar's level and the line's fill, in one layout pass.
+    func push(_ level: Float, progress: Double) { levels.removeFirst(); levels.append(level); self.progress = progress; place() }
+    func reset() { levels = levels.map { _ in 0 }; progress = 0; place() }
+
+    override func viewDidChangeEffectiveAppearance() { recolor() }
+
+    private func recolor() {
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        let ink = cg(Tokens.ink, in: self)
+        bars.forEach { $0.backgroundColor = ink }
+        track.backgroundColor = cg(Tokens.line, in: self); fill.backgroundColor = ink
+    }
+
+    private func place() {
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        for (i, b) in bars.enumerated() {
+            let h = max(Self.barWidth, CGFloat(levels[i]) * Self.tall)
+            b.frame = CGRect(x: CGFloat(i) * (Self.barWidth + Self.gap), y: 9 + (Self.tall - h) / 2, width: Self.barWidth, height: h)
+        }
+        track.frame = CGRect(x: 0, y: 0, width: Self.size.width, height: 1)
+        fill.frame = CGRect(x: 0, y: 0, width: Self.size.width * min(1, max(0, progress)), height: 1)
+    }
+}
+
 // MARK: - PanelButton
 
 /// The only button on custom surfaces: hover tint, press scale on mouse-down, violet focus ring.
 final class PanelButton: NSButton {
     enum Role { case primary, secondary, close }  // close: a 24 pt × with no border (banner)
-    let role: Role
+    var role: Role { didSet { restyle(animated: false) } }  // a held button keeps going across a relabel (primary ↔ secondary)
     var onPress: () -> Void
+    /// Set = a hold button: true on press (mouse, Space, or VoiceOver's first press), false on release.
+    var onHold: ((Bool) -> Void)?
+    private(set) var held = false, toggled = false  // toggled: started by a press-to-toggle (VoiceOver), not a real hold
     private var hovering = false
     private let focus = CAShapeLayer()
 
@@ -223,8 +259,6 @@ final class PanelButton: NSButton {
                 .withSymbolConfiguration(.init(pointSize: 10, weight: .semibold))
             imagePosition = .imageOnly
             setFrameSize(NSSize(width: 24, height: 24))
-        } else {
-            setFrameSize(NSSize(width: max(80, ceil(attributedTitle.size().width) + 28), height: 32))
         }
         setAccessibilityLabel(role == .close ? "Close" : title)
         restyle(animated: false)  // the title didSet ran before the layer existed
@@ -233,7 +267,14 @@ final class PanelButton: NSButton {
 
     @objc private func fire() { onPress() }
 
-    override var title: String { didSet { restyle(animated: false) } }
+    override var title: String {
+        didSet {
+            restyle(animated: false)
+            guard role != .close else { return }
+            setFrameSize(NSSize(width: max(80, ceil(attributedTitle.size().width) + 28), height: 32))
+            setAccessibilityLabel(title)
+        }
+    }
 
     override func viewDidChangeEffectiveAppearance() { restyle(animated: false) }
 
@@ -296,10 +337,39 @@ final class PanelButton: NSButton {
     }
 
     /// Feedback on press, not release. super runs the tracking loop until mouse-up, then fires the action.
-    override func mouseDown(with e: NSEvent) { pressed(true); super.mouseDown(with: e); pressed(false) }
+    /// A hold button tracks mouse-up itself, polling so `drop()` can end the loop (the panel moved on without a release).
+    override func mouseDown(with e: NSEvent) {
+        guard onHold != nil else { pressed(true); super.mouseDown(with: e); pressed(false); return }
+        guard let w = window else { return }
+        hold()
+        while held {  // other keys are swallowed while the mouse holds; Esc cancels (drops the take) like everywhere else
+            guard let e = w.nextEvent(matching: [.leftMouseUp, .keyDown], until: Date(timeIntervalSinceNow: Tokens.Motion.meterStep),
+                                      inMode: .eventTracking, dequeue: true) else { continue }
+            if e.type == .leftMouseUp { break }
+            if e.keyCode == 53 { drop(); w.cancelOperation(nil) }
+        }
+        release()
+    }
 
-    /// Return / Esc / VoiceOver press: the same feedback, then the action.
+    private static let holdKeys: Set<UInt16> = [49]  // Space; Return stays the panel's default button
+    override func keyDown(with e: NSEvent) {
+        if held, !toggled, e.keyCode != 53, !Self.holdKeys.contains(e.keyCode) { return }  // Tab mid-hold would strand the key-up
+        guard onHold != nil, Self.holdKeys.contains(e.keyCode) else { return super.keyDown(with: e) }
+        if !e.isARepeat { hold() }
+    }
+    override func keyUp(with e: NSEvent) {
+        guard onHold != nil, Self.holdKeys.contains(e.keyCode) else { return super.keyUp(with: e) }
+        release()
+    }
+
+    private func hold(toggle: Bool = false) { guard !held else { return }; held = true; toggled = toggle; pressed(true); onHold?(true) }
+    private func release() { guard held else { return }; held = false; pressed(false); onHold?(false) }
+    /// The hold ended elsewhere (the cap, a failure): let go without reporting a release.
+    func drop() { guard held else { return }; held = false; pressed(false) }
+
+    /// Return / Esc / VoiceOver press: the same feedback, then the action. A hold button toggles (VoiceOver can't hold).
     override func performClick(_ sender: Any?) {
+        if onHold != nil { held ? release() : hold(toggle: true); return }
         pressed(true)
         DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.Motion.press) { [weak self] in self?.pressed(false); self?.superClick(sender) }
     }
@@ -366,11 +436,13 @@ class AnchoredPanel: NSPanel {
 // MARK: - CardPanel
 
 /// The 160 pt tall panel card shared by Set up face and Message: a 48 pt glyph slot (ring), title + body, a right-aligned
-/// button row. Subclasses map their phases onto render().
+/// button row. Subclasses map their phases onto render(). Optional: waves in place of the body, and one hold button.
 class CardPanel: AnchoredPanel {
     typealias Spec = (String, PanelButton.Role, () -> Void)
     var onCancel: () -> Void = {}
+    var onHold: (Bool) -> Void = { _ in }
     let ring = ProgressRing(frame: NSRect(x: 24, y: 84, width: 48, height: 48))
+    let waves = WaveView(frame: NSRect(x: 88, y: 78, width: 0, height: 0))
     private let titleLabel = NSTextField(labelWithString: ""), body = NSTextField(wrappingLabelWithString: "")
     private var buttons: [PanelButton] = []
     private let width: CGFloat
@@ -385,7 +457,8 @@ class CardPanel: AnchoredPanel {
         titleLabel.frame = NSRect(x: 88, y: 116, width: width - 112 - (closable ? 16 : 0), height: 20)
         body.font = .systemFont(ofSize: 12); body.maximumNumberOfLines = 2
         body.frame = NSRect(x: 88, y: 80, width: width - 112, height: 32)
-        [ring, titleLabel, body].forEach(v.addSubview)
+        waves.isHidden = true
+        [ring, titleLabel, body, waves].forEach(v.addSubview)
         if closable {
             let close = PanelButton("", role: .close) { [weak self] in self?.onCancel() }
             close.setFrameOrigin(NSPoint(x: width - 12 - 24, y: 160 - 12 - 24))
@@ -394,26 +467,56 @@ class CardPanel: AnchoredPanel {
     }
 
     override var canBecomeKey: Bool { true }  // Esc and VoiceOver; nonactivating, so the user's app keeps focus
+    /// Another app took focus mid-hold: its key-up will never come here, so the take is dropped like a Cancel.
+    /// A VoiceOver toggle needs no key-up, so it carries on.
+    override func resignKey() { super.resignKey(); if buttons.contains(where: { $0.held && !$0.toggled }) { onCancel() } }
+    /// Let go of any hold without reporting a release (the panel is closing).
+    func letGo() { buttons.forEach { $0.drop() } }
+    /// The hold in progress came from a press-to-toggle (VoiceOver), so it ends with a second press, not a release.
+    var holdIsToggle: Bool { buttons.contains { $0.held && $0.toggled } }
     /// Esc presses the visible Cancel/Done/Stop button, so it gets the same press feedback.
     override func cancelOperation(_ sender: Any?) {
         if let b = buttons.first(where: { ["Cancel", "Done", "Stop"].contains($0.title) }) { b.performClick(nil) } else { onCancel() }
     }
 
-    func render(_ ringPhase: ProgressRing.Phase, _ title: String, _ text: String, _ specs: [Spec], announce: String?) {
+    /// `hold`: the title of the button that reports press/release to onHold. `holding`: a hold in progress may carry on;
+    /// otherwise any held button lets go. `showWaves`: the waves take the body's place.
+    func render(_ ringPhase: ProgressRing.Phase, _ title: String, _ text: String, _ specs: [Spec], announce: String?,
+                hold: String? = nil, holding: Bool = false, showWaves: Bool = false) {
         ring.set(ringPhase)
         titleLabel.textColor = Tokens.ink; body.textColor = Tokens.mute
         titleLabel.stringValue = title; body.stringValue = text
-        // A lone title sits on the ring's centre line; with a body, the pair fills the 56 pt row.
-        titleLabel.setFrameOrigin(NSPoint(x: 88, y: text.isEmpty ? 98 : 116))
-        if buttons.map(\.title) != specs.map(\.0) {  // same buttons across countdown ticks (keeps hover state)
-            buttons.forEach { $0.removeFromSuperview() }
-            buttons = specs.map { t, role, act in PanelButton(t, role: role) { act() } }
+        body.isHidden = showWaves; waves.isHidden = !showWaves
+        // A lone title sits on the ring's centre line; with a body (or waves), the pair fills the 56 pt row.
+        titleLabel.setFrameOrigin(NSPoint(x: 88, y: showWaves ? 122 : text.isEmpty ? 98 : 116))  // waves: the block centres on the glyph
+        if buttons.map(\.title) != specs.map(\.0) {  // same buttons across re-renders (keeps hover state)
+            // The button being held survives its relabel (same view, still first responder), so its release still lands.
+            let kept = buttons.first { $0.held }
+            buttons = specs.map { t, role, act in
+                if t == hold, let kept { kept.role = role; kept.title = t; return kept }
+                let b = PanelButton(t, role: role) { act() }
+                if t == hold {
+                    b.onHold = { [weak self] in self?.onHold($0) }
+                    b.setAccessibilityHelp("Press to start recording, press again to save.")
+                }
+                return b
+            }
+            contentView!.subviews.forEach { v in
+                if let b = v as? PanelButton, b.role != .close, !buttons.contains(where: { $0 === b }) { b.drop(); b.removeFromSuperview() }
+            }
             var x = width - 24
-            for b in buttons.reversed() { x -= b.frame.width; b.setFrameOrigin(NSPoint(x: x, y: 24)); x -= 8; contentView!.addSubview(b) }
-            buttons.last { $0.role == .primary }?.keyEquivalent = "\r"  // Return; focus ring stays off until the keyboard moves focus
+            for b in buttons.reversed() {
+                x -= b.frame.width; b.setFrameOrigin(NSPoint(x: x, y: 24)); x -= 8
+                if b.superview == nil { contentView!.addSubview(b) }
+            }
+            // Return; focus ring stays off until the keyboard moves focus. A hold button takes focus, so Space holds it.
+            buttons.forEach { $0.keyEquivalent = "" }
+            buttons.last { $0.role == .primary && $0.onHold == nil }?.keyEquivalent = "\r"
+            if let h = buttons.first(where: { $0.onHold != nil }), firstResponder !== h { makeFirstResponder(h) }
         } else {
             for (b, s) in zip(buttons, specs) { b.onPress = s.2 }  // same titles, fresh actions
         }
+        if !holding { buttons.forEach { $0.drop() } }
         if let announce {
             NSAccessibility.post(element: self, notification: .announcementRequested,
                                  userInfo: [.announcement: announce, .priority: NSAccessibilityPriorityLevel.high.rawValue])
@@ -485,18 +588,19 @@ final class EnrollPanel: AnchoredPanel {
 
 // MARK: - MessagePanel
 
-/// Away message panel (docs/designs/away-mode.md §Message): record up to 8 s, play it back, record again, delete.
-/// Wider than EnrollPanel so Delete / Record again / Play fit on one row.
+/// Away message panel (docs/designs/away-mode.md §Message): hold to record (up to 8 s), let go to save; play it back,
+/// record again, delete. Waves follow the voice while recording and the file while playing; there is no countdown.
+/// Wider than EnrollPanel so Delete / Hold to record / Play fit on one row.
 final class MessagePanel: CardPanel {
-    enum Phase: Equatable { case idle, requesting, recording(Int), recorded(Int), playing(Int, of: Int), denied, failed(String) }
+    /// `short`/`failed` carry the saved message's length (nil = none), so its Play and Delete stay.
+    enum Phase: Equatable { case idle, requesting, recording, recorded(Int), playing, denied, short(Int?), failed(String, Int?) }
 
-    var onRecord: () -> Void = {}, onStop: () -> Void = {}, onPlay: () -> Void = {}, onDelete: () -> Void = {},
-        onOpenSettings: () -> Void = {}
+    var onStop: () -> Void = {}, onPlay: () -> Void = {}, onDelete: () -> Void = {}, onOpenSettings: () -> Void = {}
     private let mic = NSImageView()
-    private var phase: Phase?
+    private(set) var phase: Phase?
 
     init() {
-        super.init(width: 336, title: "Alarm message", closable: true)
+        super.init(width: 352, title: "Alarm message", closable: true)
         mic.image = NSImage(systemSymbolName: "mic", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 24, weight: .regular))
         mic.contentTintColor = Tokens.ink
@@ -506,31 +610,44 @@ final class MessagePanel: CardPanel {
     }
 
     func show(_ p: Phase) {
-        let first = p != phase  // countdown ticks re-render silently
+        let first = p != phase
         phase = p
-        let cancel = ("Cancel", PanelButton.Role.secondary, onCancel), stop = ("Stop", PanelButton.Role.primary, onStop)
+        let none: () -> Void = {}  // a hold button acts through onHold, not its click
+        let holdTitle = "Hold to record", releaseTitle = "Release to save"  // render() finds the hold button by title
+        let hidden = ProgressRing.Phase.failed  // the ring is hidden behind the mic in these phases
+        let cancel = ("Cancel", PanelButton.Role.secondary, onCancel), hold = (holdTitle, PanelButton.Role.primary, none)
+        let saved = { (s: Int) -> [Spec] in [("Delete", .secondary, self.onDelete), (holdTitle, .secondary, none), ("Play", .primary, self.onPlay)] }
+        let retry = { (s: Int?) -> [Spec] in s.map(saved) ?? [cancel, hold] }
+        let kept = { (s: Int?) -> String in s == nil ? "" : " Your saved message is unchanged." }
         let max = Int(Tokens.Away.messageSeconds)
         let (ringPhase, title, text, specs): (ProgressRing.Phase, String, String, [Spec]) = switch p {
-        case .idle: (.failed, "Record a message", "Plays instead of the spoken line. Up to \(max) s.", [cancel, ("Record", .primary, onRecord)])
+        case .idle: (.failed, "Record a message", "Hold the button and speak. Up to \(max) s.", [cancel, hold])
         case .requesting: (.starting, "Waiting for microphone…", "Choose Allow in the system prompt.", [cancel])
-        case .recording(let r): (.counting(remaining: r, of: max), "Recording…", "Speak now. Stops by itself at \(max) s.", [stop])
-        case .recorded(let s): (.done, "Message saved", "\(s) s. Stored on this Mac only.",
-                                [("Delete", .secondary, onDelete), ("Record again", .secondary, onRecord), ("Play", .primary, onPlay)])
-        case .playing(let r, let n): (.counting(remaining: r, of: n), "Playing…", "At the alarm volume.", [stop])
+        case .recording: (hidden, "Recording…", "", [(releaseTitle, .primary, none)])
+        case .recorded(let s): (.done, "Message saved", "\(s) s. Stored on this Mac only.", saved(s))
+        case .playing: (hidden, "Playing…", "", [("Stop", .primary, onStop)])
         case .denied: (.failed, "Microphone access is off", "Allow byaku in System Settings, then try again.",
                        [cancel, ("Open microphone settings…", .primary, onOpenSettings)])
-        case .failed(let why): (.failed, "Couldn't record", why, [cancel, ("Try again", .primary, onRecord)])
+        case .short(let s): (.failed, "Too short", "Hold the button while you speak." + kept(s), retry(s))
+        case .failed(let why, let s): (.failed, "Couldn't record", why + kept(s), retry(s))
         }
         let announce: String? = switch p {
-        case .idle, .requesting: first && p == .requesting ? "\(title) \(text)" : nil
-        case .recording: first ? "Recording. Up to \(max) seconds. Speak now." : nil
-        case .recorded(let s): first ? "Message saved, \(s) seconds. Stored on this Mac only." : nil
-        case .playing: first ? "Playing." : nil
-        default: first ? "\(title). \(text)" : nil
+        case _ where !first, .idle: nil
+        case .requesting: "\(title) \(text)"
+        case .recording: holdIsToggle ? "Recording, up to \(max) seconds. Press again to save." : "Recording."
+        case .recorded(let s): "Message saved, \(s) seconds. Stored on this Mac only."
+        case .playing: "Playing."
+        default: "\(title). \(text)"
         }
-        mic.isHidden = p != .idle; ring.isHidden = p == .idle
-        render(ringPhase, title, text, specs, announce: announce)
+        let live = p == .recording || p == .playing
+        if live, first { waves.reset() }
+        mic.isHidden = !(p == .idle || live); ring.isHidden = !mic.isHidden
+        render(ringPhase, title, text, specs, announce: announce,
+               hold: p == .recording ? releaseTitle : holdTitle, holding: p == .recording, showWaves: live)
     }
+
+    /// One waves sample: level 0…1, progress 0…1 (time used of the cap, or played).
+    func meter(level: Float, progress: Double) { waves.push(level, progress: progress) }
 
     /// Delete returns to idle; VoiceOver hears what plays now.
     func deleted() {

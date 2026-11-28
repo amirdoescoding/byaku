@@ -76,13 +76,23 @@ final class Alarm: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate 
         guard let p = try? AVAudioPlayer(contentsOf: message.url) else { return nil }
         playing = true; testing = true
         takeOutput(level)
-        p.delegate = self
+        p.delegate = self; p.isMeteringEnabled = true
         guard p.play() else { stop(); return nil }
         msg = p; previewDone = done
         return p.duration
     }
 
     private var previewDone: (() -> Void)?
+
+    /// The playing message's level (0…1) and position (0…1), for the panel's waves. nil once it stopped (by any path).
+    var messageMeter: (Float, Double)? {
+        guard let p = msg, p.duration > 0 else { return nil }
+        p.updateMeters()
+        return (Self.norm(p.averagePower(forChannel: 0)), p.currentTime / p.duration)
+    }
+
+    /// Meter dB → bar height 0…1. Below −50 dB is room noise, so it draws flat.
+    static func norm(_ db: Float) -> Float { min(1, max(0, (db + 50) / 50)) }
 
     private func takeOutput(_ level: Float) {
         let dev = defaultOutput()
@@ -233,6 +243,15 @@ final class MessageRecorder: NSObject, AVAudioRecorderDelegate {
     private var rec: AVAudioRecorder?
     var onEnd: (_ saved: Bool) -> Void = { _ in }  // main thread
     var elapsed: Double { rec?.currentTime ?? 0 }
+    /// Under the shortest take. A recorder the cap already stopped reads currentTime 0 until its delegate hop: that's full length.
+    var isShort: Bool { rec.map(isShort) ?? false }
+    private func isShort(_ r: AVAudioRecorder) -> Bool { r.isRecording && r.currentTime < Tokens.Away.minMessageSeconds }
+    /// Mic level 0…1 for the panel's waves.
+    var level: Float {
+        guard let r = rec else { return 0 }
+        r.updateMeters()
+        return Alarm.norm(r.averagePower(forChannel: 0))
+    }
 
     /// false = couldn't start (no input device, folder not writable).
     func start() -> Bool {
@@ -240,7 +259,7 @@ final class MessageRecorder: NSObject, AVAudioRecorderDelegate {
             try store.prepare()
             let r = try AVAudioRecorder(url: store.tmp, settings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 44_100,
                                                                      AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 64_000])
-            r.delegate = self
+            r.delegate = self; r.isMeteringEnabled = true
             guard r.record(forDuration: Tokens.Away.messageSeconds) else { return false }
             rec = r
             return true
@@ -251,7 +270,7 @@ final class MessageRecorder: NSObject, AVAudioRecorderDelegate {
     func finish(save: Bool) {
         guard let r = rec else { return }
         rec = nil
-        let long = r.currentTime >= Tokens.Away.minMessageSeconds  // read before stop(); a mis-click isn't a message
+        let long = !isShort(r)  // read before stop(); a mis-click isn't a message
         r.stop()
         guard save, long, (try? store.install()) != nil else { store.discardTmp(); return onEnd(false) }
         onEnd(true)
