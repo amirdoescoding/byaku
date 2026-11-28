@@ -33,8 +33,7 @@ camera (low res, 1–5 fps) → face detection → is it you? → is it looking 
 3. **Gaze**: head yaw/pitch first. A small trained classifier comes later.
 4. **Debounce**: a face must be seen looking for several frames before byaku reacts, which avoids flicker.
 
-The design target is ≤ ~1.5 W of extra power while guarding. Details are in
-[`.claude/ARCHITECTURE.md`](.claude/ARCHITECTURE.md).
+The design target is ≤ ~1.5 W of extra power while guarding.
 
 ## Privacy
 

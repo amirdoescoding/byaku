@@ -81,3 +81,13 @@ site/.screens
 video/node_modules
 video/public/audio/
 video/out/
+
+# BYAKU: private, kept local only (agent config, session logs, brand sources, marketing)
+.claude/
+.agents/
+.logs/
+design/
+assets/
+marketing/
+.impeccable/
+skills-lock.json
