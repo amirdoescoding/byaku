@@ -77,3 +77,8 @@
   `attributedTitle` changes redraw an open menu. Gotcha: `attributedTitle = nil` (or nil + re-setting the same title) blanks the
   row, so un-light with a plain attributed string. Steps: Guard, Away, Alarm sound, Message…, Mode, Set up face (user: "core only").
   Testing without synthetic clicks: compile `Sources/Byaku/*.swift` minus main.swift + a harness main (`swiftc -module-name Byaku`), screencapture.
+- 2026-11-28 Hold-to-record (`feat/hold-to-record`): `PanelButton.onHold` tracks the mouse with `nextEvent(.eventTracking)` (Esc
+  inside the loop cancels), Space keyDown/keyUp holds, `performClick` (VoiceOver) toggles; `CardPanel.resignKey` drops a keyboard
+  hold. `WaveView` = 28 CALayer bars fed by `averagePower` (−50…0 dB → 0…1, `Alarm.norm`) at `Motion.meterStep` 1/30 s via `meterTick`.
+  The held button is reused across re-renders (role/title are vars) so it keeps tracking and first responder. Codesign from Claude's
+  background shell can fail with errSecInternalComponent; the user runs bundle.sh with `!`.
