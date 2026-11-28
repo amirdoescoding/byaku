@@ -30,13 +30,16 @@ Gate on the `v0.1.0-rc1` prerelease (download it in a browser on a new macOS use
 - [x] **Onboarding tour is guided, not click-anywhere** (`feat/guided-tour`) (rc1 QA, 2026-11-27): a stray click starts the founder video and the
   tour falls apart. Keep everything else the same. Light one menu row at a time, dim the rest; **Next** moves on; the last step
   is **Finish**, and only Finish plays the video.
-- [ ] **Away message: hold to record** (rc1 QA): the fixed 8 s take confused a tester, who had to redo it. Press and hold
+- [x] **Away message: hold to record** (`feat/hold-to-record`) (rc1 QA): the fixed 8 s take confused a tester, who had to redo it. Press and hold
   Record, a live waveform plays while held, and releasing saves. Mockups first.
 - [ ] Updates: no auto-update yet (users re-download). Decide with notarization: manual + GitHub release watch, or opt-in
   Sparkle (it would be the app's only network call, so it's against invariant 2 unless off by default)
 
 - [ ] Away sound picker: Return doesn't pick a highlighted sound (custom menu-row views); click or VoiceOver press only
-- [ ] Message panel: picking a sound while the panel plays the message stops it, but the panel's countdown sticks at 1 until Stop
+- [ ] Message panel: picking a sound while Play runs stops the message; the countdown is gone, check the waves panel returns to saved
+- [ ] Hold-to-record open notes (review, not blocking): cap can race a VoiceOver toggle's 2nd press; a stray Space ends a VO take;
+  VO press during the 0.15 s exit; playback failure is titled "Couldn't record" with no Delete; progress line snaps to 0 at the cap;
+  2.5 s VO lead may still clip speech (device check); screen lock inside the mouse-hold loop (conf 4/10); no unit tests for AppController message state
 
 - [x] Away sound picker: the siren is too alarming for some; let the user pick the sound (system sounds + computed siren). Mockups first
 - [x] Away spoken line is too quiet next to the siren: raise the voice or duck the siren while it speaks

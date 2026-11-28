@@ -233,3 +233,41 @@ private func hold(_ yaw: Double, _ seconds: Double) -> [(Int, Double)] { Array(r
     var q = ScanPose()  // frames without a print never complete straight
     #expect(!(0..<40).flatMap { _ in q.frame(faces: 1, yaw: 0, dt: 1.0 / 15, printed: false) }.contains(.capture(.straight)))
 }
+
+@Test func meterNormMapsDecibelsToBarHeight() {
+    #expect(Alarm.norm(-160) == 0)
+    #expect(Alarm.norm(-50) == 0)
+    #expect(Alarm.norm(0) == 1)
+    #expect(Alarm.norm(6) == 1)
+    #expect(abs(Alarm.norm(-25) - 0.5) < 1e-6)
+}
+
+/// VoiceOver can't hold: press starts, press again saves. A drop (the cap, a failure) ends the hold without a release.
+@Test func holdButtonTogglesAndDropIsSilent() {
+    let b = PanelButton("Hold to record", role: .primary) {}
+    var calls: [Bool] = []
+    b.onHold = { calls.append($0) }
+    b.performClick(nil)
+    #expect(b.held && b.toggled && calls == [true])
+    b.performClick(nil)
+    #expect(!b.held && calls == [true, false])
+    b.performClick(nil); b.drop()
+    #expect(!b.held && calls == [true, false, true])
+    b.performClick(nil)  // a fresh hold, not a stale release
+    #expect(calls.last == true)
+}
+
+/// The held button survives its relabel to "Release to save" (its release must still land), and lets go once the take ends.
+@MainActor @Test func heldButtonSurvivesRelabel() {
+    let p = MessagePanel()
+    p.show(.idle)
+    let hold = p.contentView!.subviews.compactMap { $0 as? PanelButton }.first { $0.title == "Hold to record" }!
+    p.onHold = { if $0 { p.show(.recording) } }
+    hold.performClick(nil)
+    #expect(hold.held && hold.title == "Release to save" && hold.superview != nil)
+    p.show(.recorded(3))
+    #expect(!hold.held && hold.title == "Hold to record" && hold.superview != nil)
+    p.show(.short(nil))
+    let titles = p.contentView!.subviews.compactMap { $0 as? PanelButton }.map(\.title)
+    #expect(titles.contains("Cancel"))
+}
